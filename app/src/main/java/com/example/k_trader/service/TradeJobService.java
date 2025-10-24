@@ -4,7 +4,6 @@ import com.example.k_trader.notification.TradeNotificationManager;
 import android.app.Service;
 import android.os.Handler;
 import android.os.Looper;
-import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -13,9 +12,8 @@ import android.util.Log;
 
 import com.example.k_trader.ui.fragment.MainPage;
 import com.example.k_trader.util.LogInfoFormatter;
-import com.example.k_trader.ui.activity.MainActivity;
+import com.example.k_trader.util.PriceQueueManager;
 import com.example.k_trader.KTraderApplication;
-import com.example.k_trader.R;
 import com.example.k_trader.base.GlobalSettings;
 import com.example.k_trader.base.OrderManager;
 import com.example.k_trader.base.TradeData;
@@ -29,7 +27,6 @@ import org.json.simple.JSONObject;
 
 import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -65,7 +62,8 @@ public class TradeJobService extends Service {
     private final TradeDataManager placedOrderManager = new TradeDataManager();
     private static final TradeDataManager processedOrderManager = new TradeDataManager();
 
-    private static final List<Integer> priceQueue = new ArrayList<>();
+    // PriceQueueManager 사용 (Singleton)
+    private final PriceQueueManager priceQueueManager = PriceQueueManager.getInstance();
     private Context ctx;
     private OrderManager orderManager;
 
@@ -118,7 +116,7 @@ public class TradeJobService extends Service {
                         try {
                             tradeBusinessLogic();
                         } catch (Exception e) {
-                            LogInfoFormatter.log_info(LogInfoFormatter.formatBusinessLogicError(e.getMessage()));
+                            LogInfoFormatter.logInfo(LogInfoFormatter.formatBusinessLogicError(e.getMessage()));
                             sendErrorCard("Trade Business Logic Error", ERR_BUSINESS_001.getDescription());
                         }
                     }).start();
@@ -169,19 +167,7 @@ public class TradeJobService extends Service {
 
     // 1시간 동안 시장가 변동폭을 구해 리턴한다.
     private float getPriceVariationRate() {
-        int maxPrice = Collections.max(priceQueue);
-        int minPrice = Collections.min(priceQueue);
-
-        int minIndex = priceQueue.indexOf(minPrice);
-        int maxIndex = priceQueue.indexOf(maxPrice);
-
-        if (minIndex < maxIndex) {
-            // 상승
-            return ((maxPrice / (float)minPrice ) - 1) * 100;
-        } else {
-            // 하락
-            return ((minPrice / (float)maxPrice ) - 1) * 100;
-        }
+        return priceQueueManager.getPriceVariationRate();
     }
 
     private List<TradeData> mergeSamePrice(List<TradeData> list) {
@@ -210,7 +196,7 @@ public class TradeJobService extends Service {
 
     private boolean isSameSlotOrder(TradeData oData, TradeData pData, int price) {
         if (((oData.getUnits() + pData.getUnits()) * price) <= (GlobalSettings.getInstance().getUnitPrice() + GlobalSettings.getInstance().getUnitPrice() * (GlobalSettings.getInstance().getEarningRate() / 100.0))) {
-            LogInfoFormatter.log_info(LogInfoFormatter.formatSameSlotOrder(
+            LogInfoFormatter.logInfo(LogInfoFormatter.formatSameSlotOrder(
                     (int)((oData.getUnits() + pData.getUnits()) * price),
                     (int)(oData.getUnits() * price),
                     (int)(pData.getUnits() * price)));
@@ -234,7 +220,7 @@ public class TradeJobService extends Service {
                                         .setFileLogEnabled(sharedPreferences.getBoolean(GlobalSettings.FILE_LOG_ENABLED_KEY_NAME, false))
                                         .setEarningRate(sharedPreferences.getFloat(GlobalSettings.EARNING_RATE_KEY_NAME, GlobalSettings.EARNING_RATE_DEFAULT_VALUE))
                                         .setSlotIntervalRate(sharedPreferences.getFloat(GlobalSettings.SLOT_INTERVAL_RATE_KEY_NAME, GlobalSettings.SLOT_INTERVAL_RATE_DEFAULT_VALUE));
-            LogInfoFormatter.log_info(LogInfoFormatter.formatAppTerminated());
+            LogInfoFormatter.logInfo(LogInfoFormatter.formatAppTerminated());
         }
 
         // static 변수 초기화 - 매번 현재 시간으로 설정하여 중복 노티 방지
@@ -269,9 +255,8 @@ public class TradeJobService extends Service {
                     currentCal.get(Calendar.HOUR_OF_DAY), currentCal.get(Calendar.MINUTE), currentCal.get(Calendar.SECOND)));
         }
 
-        Calendar currentTime = Calendar.getInstance();
-        LogInfoFormatter.log_info(LogInfoFormatter.formatSeparator());
-        LogInfoFormatter.log_info(LogInfoFormatter.formatCurrentTime());
+        LogInfoFormatter.logInfo(LogInfoFormatter.formatSeparator());
+        LogInfoFormatter.logInfo(LogInfoFormatter.formatCurrentTime());
 
         // 잔고를 가져와 업데이트 한다.
         double krwBalance;
@@ -279,12 +264,26 @@ public class TradeJobService extends Service {
             JSONObject dataObj = orderManager.getBalance("");
             String totalKrw = (String) dataObj.get("total_krw");
             String availableBtc = (String) dataObj.get("available_btc");
+            String availableEth = (String) dataObj.get("available_eth");
 
-            if (totalKrw != null && availableBtc != null) {
+            if (totalKrw != null) {
                 krwBalance = Double.parseDouble(totalKrw);
-                availableCoinBalance = Double.parseDouble(availableBtc);
+                
+                // 현재 설정된 코인 타입에 따라 적절한 잔고 사용
+                String coinType = getCurrentCoinType();
+                if ("ETH".equals(coinType) && availableEth != null) {
+                    availableCoinBalance = Double.parseDouble(availableEth);
+                    Log.d("KTrader", "[TradeJobService] Using ETH balance: " + availableCoinBalance);
+                } else if (availableBtc != null) {
+                    availableCoinBalance = Double.parseDouble(availableBtc);
+                    Log.d("KTrader", "[TradeJobService] Using BTC balance: " + availableCoinBalance);
+                } else {
+                    LogInfoFormatter.logInfo(LogInfoFormatter.formatBalanceError());
+                    sendErrorCard("Balance Error", ERR_API_003.getDescription());
+                    return;
+                }
             } else {
-                LogInfoFormatter.log_info(LogInfoFormatter.formatBalanceError());
+                LogInfoFormatter.logInfo(LogInfoFormatter.formatBalanceError());
                 sendErrorCard("Balance Error", ERR_API_003.getDescription());
                 return;
             }
@@ -300,17 +299,17 @@ public class TradeJobService extends Service {
                 if (priceStr != null) {
                     currentPrice = (int)Double.parseDouble(priceStr);
                 } else {
-                    LogInfoFormatter.log_info(LogInfoFormatter.formatPriceError());
+                    LogInfoFormatter.logInfo(LogInfoFormatter.formatPriceError());
                     sendErrorCard("Price Error", ERR_API_004.getDescription());
                     return;
                 }
             } else {
-                LogInfoFormatter.log_info(LogInfoFormatter.formatBuyOrderError());
+                LogInfoFormatter.logInfo(LogInfoFormatter.formatBuyOrderError());
                 sendErrorCard("Buy Order Error", ERR_API_002.getDescription());
                 return;
             }
 
-            LogInfoFormatter.log_info(LogInfoFormatter.formatCurrentPrice(getCurrentCoinType(), currentPrice));
+            LogInfoFormatter.logInfo(LogInfoFormatter.formatCurrentPrice(getCurrentCoinType(), currentPrice));
             
             // 카드 데이터 전송
             sendCardData(currentPrice, krwBalance);
@@ -318,20 +317,16 @@ public class TradeJobService extends Service {
             // 빗썸은 0.0001 코인이 최소 거래 단위이므로 체크
             String coinType = getCurrentCoinType();
             if (currentPrice / 10000 > GlobalSettings.getInstance().getUnitPrice()) {
-                LogInfoFormatter.log_info(LogInfoFormatter.formatTradingAmountWarning(
+                LogInfoFormatter.logInfo(LogInfoFormatter.formatTradingAmountWarning(
                         GlobalSettings.getInstance().getUnitPrice(), 
                         coinType, 
                         currentPrice / 10000));
                 return;
             }
 
-            priceQueue.add(currentPrice);
-            while (priceQueue.size() > PRICE_SAVING_QUEUE_COUNT) {
-                // 가장 오래된 시장가를 밀어낸다.
-                priceQueue.remove(0);
-            }
+            priceQueueManager.addPrice(currentPrice);
 
-            LogInfoFormatter.log_info(LogInfoFormatter.formatPriceVariationRate(getPriceVariationRate()));
+            LogInfoFormatter.logInfo(LogInfoFormatter.formatPriceVariationRate(getPriceVariationRate()));
         }
 
         // 현재 걸려 있는 매도 리스트를 가져온다.
@@ -360,13 +355,13 @@ public class TradeJobService extends Service {
         }
 
         // 현재 매도 걸려 있는 order들이 전부 매도 완료되었을 때 예상 잔고
-        LogInfoFormatter.log_info(LogInfoFormatter.formatEstimatedBalance(
+        LogInfoFormatter.logInfo(LogInfoFormatter.formatEstimatedBalance(
                 (long)(krwBalance + placedOrderManager.getEstimation()) + (int)(availableCoinBalance * currentPrice),
                 (long)(krwBalance)));
         //log_info("예상잔고 : " + String.format(Locale.getDefault(), "%,d"
         //        , (long)(krwBalance + placedOrderManager.getEstimation()) + (int)(availableCoinBalance * currentPrice))
         //        );
-        LogInfoFormatter.log_info(LogInfoFormatter.formatSellCompleteBalance(
+        LogInfoFormatter.logInfo(LogInfoFormatter.formatSellCompleteBalance(
                 (long)(placedOrderManager.getEstimation()),
                 (int)(availableCoinBalance * currentPrice)));
 
@@ -416,7 +411,7 @@ public class TradeJobService extends Service {
                 Calendar lastBuyTime;
                 lastBuyTime = Calendar.getInstance();
                 lastBuyTime.setTimeInMillis(data.getProcessedTime());
-                LogInfoFormatter.log_info(LogInfoFormatter.formatLastBuyInfo(data.getPrice(), data.getProcessedTime()));
+                LogInfoFormatter.logInfo(LogInfoFormatter.formatLastBuyInfo(data.getPrice(), data.getProcessedTime()));
             }
         }
 
@@ -427,7 +422,7 @@ public class TradeJobService extends Service {
                 Calendar lastSellTime;
                 lastSellTime = Calendar.getInstance();
                 lastSellTime.setTimeInMillis(data.getProcessedTime());
-                LogInfoFormatter.log_info(LogInfoFormatter.formatLastSellInfo(data.getPrice(), data.getProcessedTime()));
+                LogInfoFormatter.logInfo(LogInfoFormatter.formatLastSellInfo(data.getPrice(), data.getProcessedTime()));
             }
         }
 
@@ -472,7 +467,7 @@ public class TradeJobService extends Service {
                 time.setTimeInMillis(pData.getProcessedTime());
 
                 if (pData.getType() == BUY) {
-                    LogInfoFormatter.log_info(LogInfoFormatter.formatBuyOccurred(pData.getPrice(), pData.getProcessedTime()));
+                    LogInfoFormatter.logInfo(LogInfoFormatter.formatBuyOccurred(pData.getPrice(), pData.getProcessedTime()));
                     notificationManager.sendTradeNotification("매수 발생", "매수 : " + String.format(Locale.getDefault(), "%,d", pData.getPrice()) + ", " + String.format(Locale.getDefault(), "%02d/%02d %02d:%02d"
                             , time.get(Calendar.MONTH) + 1, time.get(Calendar.DATE)
                             , time.get(Calendar.HOUR_OF_DAY), time.get(Calendar.MINUTE)));
@@ -485,7 +480,7 @@ public class TradeJobService extends Service {
                     if ((pData.getUnits() - unit) > 0.00005) {
                         if ((availableCoinBalance - unit) > 0.0001) {
                             unit = (float)(Math.round(pData.getUnits() * 10000d) / 10000d);
-                            LogInfoFormatter.log_info(LogInfoFormatter.formatSellCorrection(pData.getUnits(), unit));
+                            LogInfoFormatter.logInfo(LogInfoFormatter.formatSellCorrection(pData.getUnits(), unit));
                         }
                     }
 
@@ -495,7 +490,7 @@ public class TradeJobService extends Service {
                     Log.d("KTrader", "[TradeJobService] unit : " + unit + " availableCoinBalance: " + availableCoinBalance);
 
                     if (unit > availableCoinBalance) {
-                        LogInfoFormatter.log_info(LogInfoFormatter.formatSellCorrection2(unit, availableCoinBalance));
+                        LogInfoFormatter.logInfo(LogInfoFormatter.formatSellCorrection2(unit, availableCoinBalance));
                         unit = (float)((int)(availableCoinBalance * 10000) / 10000.0);
                     }
 
@@ -553,13 +548,13 @@ public class TradeJobService extends Service {
                                 + String.format(Locale.getDefault(), "%,d", pData.getPrice()));
                     }
                 } else if (pData.getType() == SELL) {
-                    LogInfoFormatter.log_info(LogInfoFormatter.formatSellOccurred(pData.getPrice(), pData.getProcessedTime()));
+                    LogInfoFormatter.logInfo(LogInfoFormatter.formatSellOccurred(pData.getPrice(), pData.getProcessedTime()));
                     notificationManager.sendTradeNotification("매도 발생", "매도 : " + String.format(Locale.getDefault(), "%,d", pData.getPrice()) + ", " + String.format(Locale.getDefault(), "%02d/%02d %02d:%02d"
                             , time.get(Calendar.MONTH) + 1, time.get(Calendar.DATE)
                             , time.get(Calendar.HOUR_OF_DAY), time.get(Calendar.MINUTE)));
                 } else {
                     // BUY, SELL 이외 수수료 쿠폰 구입 등의 항목일 경우에 여기로 올 수 있다.
-                    LogInfoFormatter.log_info(LogInfoFormatter.formatOtherTradeItem(pData.getType().toString()));
+                    LogInfoFormatter.logInfo(LogInfoFormatter.formatOtherTradeItem(pData.getType().toString()));
                 }
 
                 // 최대 처리 시간 업데이트
@@ -583,7 +578,7 @@ public class TradeJobService extends Service {
         // 매수건에 대한 매도를 다 처리 했음에도 코인 잔고가 남아 있는 경우에 대한 예외처리, 가능한 slot을 찾아 매도 오더를 발행한다.
         // 예) 매수 발생 후 앱이 종료되었다가 앱이 재실행 된 경우
         if (availableCoinBalance > TRADING_VALUE_MIN) {
-            LogInfoFormatter.log_info(LogInfoFormatter.formatSellRequiredBalance(availableCoinBalance));
+            LogInfoFormatter.logInfo(LogInfoFormatter.formatSellRequiredBalance(availableCoinBalance));
             // 현재가보다 상위에 비어 있는 slot 중 하나를 찾아보고 있다면 매도하도록 한다.
             int floorPrice = getFloorPrice(currentPrice);
             double unit = Math.min(getUnitAmount4Price(floorPrice), (availableCoinBalance * 10000) / 10000.0);
@@ -657,14 +652,14 @@ public class TradeJobService extends Service {
                     continue;
                 }
 
-                LogInfoFormatter.log_info(LogInfoFormatter.formatNextLowBuyPrice(targetPrice));
+                LogInfoFormatter.logInfo(LogInfoFormatter.formatNextLowBuyPrice(targetPrice));
 
                 // 매수 주문 전 잔고 확인
                 double requiredAmount = getUnitAmount4Price(targetPrice) * targetPrice;
                 Log.d("KTrader", "[TradeJobService] 매수 주문 필요 금액: " + requiredAmount + ", 보유 금액: " + krwBalance);
                 
                 if (krwBalance < requiredAmount) {
-                    LogInfoFormatter.log_info("잔고 부족으로 매수 주문을 건너뜁니다. 필요: " + 
+                    LogInfoFormatter.logInfo("잔고 부족으로 매수 주문을 건너뜁니다. 필요: " +
                         String.format(Locale.getDefault(), "%,.0f", requiredAmount) + 
                         "원, 보유: " + String.format(Locale.getDefault(), "%,.0f", krwBalance) + "원");
                     Log.d("KTrader", "[TradeJobService] 잔고 부족으로 매수 주문 건너뜀");
@@ -717,28 +712,36 @@ public class TradeJobService extends Service {
     }
     
     /**
-     * API에서 현재 등락률 정보를 가져옴 (TransactionCard용 - 1시간 전 대비)
+     * PriceQueueManager를 이용한 1시간 등락폭 계산
      */
     private String getCurrentPriceChangeFromApi() {
         try {
-            // TransactionDataManager를 통해 최신 등락률 정보 가져오기
-            com.example.k_trader.data.TransactionDataManager dataManager = 
-                com.example.k_trader.data.TransactionDataManager.getInstance(KTraderApplication.getAppContext());
+            PriceQueueManager priceManager = PriceQueueManager.getInstance();
             
-            // 캐시된 데이터에서 1시간 전 대비 등락률 정보 가져오기
-            com.example.k_trader.data.TransactionData cachedData = dataManager.getCachedData();
-            if (cachedData != null && cachedData.getHourlyChange() != null) {
-                String change = cachedData.getHourlyChange();
-                Log.d("KTrader", "[TradeJobService] Using cached hourly change (1H): " + change);
-                return change;
+            // 큐에 충분한 데이터가 있는지 확인 (최소 2개 이상)
+            if (!priceManager.hasMinimumData(2)) {
+                Log.w("KTrader", "[TradeJobService] Not enough price data for variation calculation, using default");
+                return "+0.00%";
             }
             
-            // 캐시된 데이터가 없으면 기본값 반환
-            Log.w("KTrader", "[TradeJobService] No cached hourly change data available");
-            return "+0.00%";
+            // PriceQueueManager에서 변동률 계산
+            float variationRate = priceManager.getPriceVariationRate();
+            
+            // 변동률을 퍼센트 문자열로 포맷팅
+            String formattedChange;
+            if (variationRate >= 0) {
+                formattedChange = String.format("+%.2f%%", variationRate);
+            } else {
+                formattedChange = String.format("%.2f%%", variationRate);
+            }
+            
+            Log.d("KTrader", "[TradeJobService] Calculated hourly change from PriceQueueManager: " + formattedChange);
+            Log.d("KTrader", "[TradeJobService] PriceQueue status: " + priceManager.getQueueStatus());
+            
+            return formattedChange;
             
         } catch (Exception e) {
-            Log.e("KTrader", "[TradeJobService] Error getting hourly change from API", e);
+            Log.e("KTrader", "[TradeJobService] Error calculating hourly change from PriceQueueManager", e);
             return "+0.00%";
         }
     }

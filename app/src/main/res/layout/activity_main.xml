@@ -30,18 +30,6 @@
                 android:text="K-Trader"
                 android:textSize="18sp"
                 android:textStyle="bold" />
-
-            <!-- 마지막 동기화 시간 (우측) -->
-            <TextView
-                android:id="@+id/textLastSyncTime"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_alignParentEnd="true"
-                android:layout_centerVertical="true"
-                android:layout_marginEnd="16dp"
-                android:text="--:--"
-                android:textSize="12sp" />
-
         </RelativeLayout>
 
     </android.support.v7.widget.Toolbar>

@@ -4,7 +4,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.support.v4.content.LocalBroadcastManager;
 
-import com.example.k_trader.KTraderApplication;
+import com.example.k_trader.util.LogInfoFormatter;
 import com.example.k_trader.database.entities.OrderEntity;
 import com.example.k_trader.ui.fragment.TransactionLogPage;
 import com.example.k_trader.bitthumb.lib.Api_Client;
@@ -80,12 +80,12 @@ public class DatabaseOrderManager {
                 result = api.callApi("POST", "/info/orders", param);
 
                 if (result == null) {
-                    log_info(tag + " : " + "/info/orders : 1 : null");
+                    LogInfoFormatter.logInfo(tag + " : " + "/info/orders : 1 : null");
                     return;
                 }
 
                 if (result.get("status") instanceof Long) {
-                    log_info(tag + " : " + "/info/orders : 2 : " + result);
+                    LogInfoFormatter.logInfo(tag + " : " + "/info/orders : 2 : " + result);
                     return;
                 }
 
@@ -98,7 +98,7 @@ public class DatabaseOrderManager {
                 }
 
                 if (result.get("status") == null || !String.valueOf(result.get("status")).equals("0000")) {
-                    log_info(tag + " : " + "/info/orders : 3 : " + result);
+                    LogInfoFormatter.logInfo(tag + " : " + "/info/orders : 3 : " + result);
                     return;
                 }
 
@@ -173,17 +173,17 @@ public class DatabaseOrderManager {
                 result = api.callApi("POST", "/info/user_transactions", rgParams);
 
                 if (result == null) {
-                    log_info(tag + " : " + "/info/user_transactions : null");
+                    LogInfoFormatter.logInfo(tag + " : " + "/info/user_transactions : null");
                     return;
                 }
 
                 if (result.get("status") instanceof Long) {
-                    log_info(tag + " : " + "/info/user_transactions : " + result);
+                    LogInfoFormatter.logInfo(tag + " : " + "/info/user_transactions : " + result);
                     return;
                 }
 
                 if (result.get("status") == null || !String.valueOf(result.get("status")).equals("0000")) {
-                    log_info(tag + " : " + "/info/user_transactions : " + result);
+                    LogInfoFormatter.logInfo(tag + " : " + "/info/user_transactions : " + result);
                     return;
                 }
 
@@ -371,13 +371,5 @@ public class DatabaseOrderManager {
         disposables.clear();
     }
 
-    private void log_info(final String log) {
-        if (logger != null)
-            logger.info(log);
-        Intent intent = new Intent(TransactionLogPage.BROADCAST_LOG_MESSAGE);
-        intent.putExtra("log", log);
-        if (KTraderApplication.getAppContext() != null)
-            LocalBroadcastManager.getInstance(KTraderApplication.getAppContext()).sendBroadcast(intent);
-    }
     
 }

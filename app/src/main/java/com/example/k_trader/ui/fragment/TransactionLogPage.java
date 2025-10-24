@@ -17,6 +17,7 @@ import android.widget.ScrollView;
 import com.example.k_trader.base.GlobalSettings;
 import com.example.k_trader.R;
 import com.example.k_trader.base.TradeData;
+import com.example.k_trader.util.LogInfoFormatter;
 import com.example.k_trader.database.DatabaseMonitor;
 
 import java.util.List;
@@ -92,11 +93,11 @@ public class TransactionLogPage extends Fragment implements DatabaseMonitor.Data
     public void onOrdersChanged(List<TradeData> orders) {
         if (getActivity() != null) {
             getActivity().runOnUiThread(() -> {
-                log_info("=== 주문 목록 업데이트 ===");
+                LogInfoFormatter.logInfo("=== 주문 목록 업데이트 ===");
                 for (TradeData order : orders) {
-                    log_info(order.toString());
+                    LogInfoFormatter.logInfo(order.toString());
                 }
-                log_info("=== 총 " + orders.size() + "개 주문 ===");
+                LogInfoFormatter.logInfo("=== 총 " + orders.size() + "개 주문 ===");
             });
         }
     }
@@ -114,28 +115,6 @@ public class TransactionLogPage extends Fragment implements DatabaseMonitor.Data
         }
     }
 
-    /**
-     * 로그 메시지를 처리하는 메서드
-     */
-    private void log_info(final String log) {
-        Runnable runnable = () -> {
-            if (getActivity() != null) {
-                getActivity().runOnUiThread(() -> {
-                    editText.append(log + "\r\n");
-
-                    CharSequence charSequence = editText.getText();
-                    if (charSequence.length() > MAX_BUFFER)
-                        editText.getEditableText().delete(0, charSequence.length() - MAX_BUFFER);
-
-                    // Auto scroll 설정에 따라 스크롤
-                    if (GlobalSettings.getInstance().isAutoScroll()) {
-                        scrollView.post(() -> scrollView.fullScroll(View.FOCUS_DOWN));
-                    }
-                });
-            }
-        };
-        runnable.run();
-    }
 
     /**
      * 로그 메시지를 받는 BroadcastReceiver
@@ -145,7 +124,7 @@ public class TransactionLogPage extends Fragment implements DatabaseMonitor.Data
         public void onReceive(Context context, Intent intent) {
             if (intent.getAction() != null && intent.getAction().equals(BROADCAST_LOG_MESSAGE)) {
                 String log = intent.getStringExtra("log");
-                log_info(log);
+                LogInfoFormatter.logInfo(log);
             }
         }
     }

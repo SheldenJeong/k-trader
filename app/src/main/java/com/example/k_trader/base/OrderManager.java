@@ -4,6 +4,7 @@ import android.content.Intent;
 import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 
+import com.example.k_trader.util.LogInfoFormatter;
 import com.example.k_trader.ui.activity.MainActivity;
 import com.example.k_trader.KTraderApplication;
 import com.example.k_trader.ui.fragment.TransactionLogPage;
@@ -64,33 +65,33 @@ public class OrderManager {
         rgParams.put("order_id", data.getId());
         rgParams.put("payment_currency", "KRW");
 
-        log_info(tag + " : " + data.getType().toString() + " 취소 : " + data.getId() + " : " + data.getUnits() + " : " + String.format(Locale.getDefault(), "%,d", data.getPrice()));
+        LogInfoFormatter.logInfo(tag + " : " + data.getType().toString() + " 취소 : " + data.getId() + " : " + data.getUnits() + " : " + String.format(Locale.getDefault(), "%,d", data.getPrice()));
 
         try {
             result = api.callApi("POST", "/trade/cancel", rgParams);
 
             if (result == null) {
-                log_info(tag + " : " + "/trade/cancel : null");
+                LogInfoFormatter.logInfo(tag + " : " + "/trade/cancel : null");
                 return false;
             }
 
             if (result.get("status") instanceof Long) {
                 String logMessage = tag + " : " + "/trade/cancel : " + result.toString();
-                log_info(logMessage);
+                LogInfoFormatter.logInfo(logMessage);
                 sendErrorCard("API Error", ERR_API_001.getDescription());
                 return false;
             }
 
             if (!((String) result.get("status")).equals("0000")) {
                 String logMessage = tag + " : " + "/trade/cancel : " + result.toString();
-                log_info(logMessage);
+                LogInfoFormatter.logInfo(logMessage);
                 sendErrorCard("API Error", ERR_API_001.getDescription());
                 return false;
             }
         } catch (Exception e) {
             e.printStackTrace();
             String logMessage = tag + " : " + "/trade/cancel : " + e.getMessage();
-            log_info(logMessage);
+            LogInfoFormatter.logInfo(logMessage);
             sendErrorCard("API Error", ERR_API_001.getDescription());
             return false;
         }
@@ -124,7 +125,7 @@ public class OrderManager {
                     cancelCount++;
                 }
             }
-            log_info(String.format("취소 결과 : %d개", cancelCount));
+            LogInfoFormatter.logInfo(String.format("취소 결과 : %d개", cancelCount));
         }
 
         return true;
@@ -137,7 +138,7 @@ public class OrderManager {
 
         if (units < 0.0001) {
             String logMessage = tag + " : " + type.toString() + " 발행 취소 : " + String.format("%.4f", units) + " : " + "최소 수량 미달";
-            log_info(logMessage);
+            LogInfoFormatter.logInfo(logMessage);
             sendErrorCard("Validation Error", ERR_VALIDATION_001.getDescription());
             Log.d("KTrader", "Order " + "Validation Error");
             return null;
@@ -186,7 +187,7 @@ public class OrderManager {
                         double requiredAmount = units * price;
                         
                         if (krwBalance < requiredAmount) {
-                            log_info(tag + " : 잔고 부족으로 매수 주문을 건너뜁니다. 필요: " + 
+                            LogInfoFormatter.logInfo(tag + " : 잔고 부족으로 매수 주문을 건너뜁니다. 필요: " + 
                                 String.format(Locale.getDefault(), "%,.0f", requiredAmount) + 
                                 "원, 보유: " + String.format(Locale.getDefault(), "%,.0f", krwBalance) + "원");
                             return null;
@@ -194,28 +195,28 @@ public class OrderManager {
                     }
                 }
             } catch (Exception e) {
-                log_info(tag + " : 잔고 확인 중 오류 발생: " + e.getMessage());
+                LogInfoFormatter.logInfo(tag + " : 잔고 확인 중 오류 발생: " + e.getMessage());
                 return null;
             }
         }
 
-        log_info(tag + " : " + type.toString() + " 발행 시도 : " + String.format("%.4f", units) + " : " + String.format(Locale.getDefault(), "%,d", price));
-        log_info(tag + " : API Key 설정 상태: " + (GlobalSettings.getInstance().getApiKey().isEmpty() ? "비어있음" : "설정됨"));
-        log_info(tag + " : API Secret 설정 상태: " + (GlobalSettings.getInstance().getApiSecret().isEmpty() ? "비어있음" : "설정됨"));
-        log_info(tag + " : 코인 타입: " + getCurrentCoinType());
+        LogInfoFormatter.logInfo(tag + " : " + type.toString() + " 발행 시도 : " + String.format("%.4f", units) + " : " + String.format(Locale.getDefault(), "%,d", price));
+        LogInfoFormatter.logInfo(tag + " : API Key 설정 상태: " + (GlobalSettings.getInstance().getApiKey().isEmpty() ? "비어있음" : "설정됨"));
+        LogInfoFormatter.logInfo(tag + " : API Secret 설정 상태: " + (GlobalSettings.getInstance().getApiSecret().isEmpty() ? "비어있음" : "설정됨"));
+        LogInfoFormatter.logInfo(tag + " : 코인 타입: " + getCurrentCoinType());
 
         try {
             result = api.callApi("POST", "/trade/place", rgParams);
 
             if (result == null) {
-                log_info(tag + " : " + "/trade/place : null");
+                LogInfoFormatter.logInfo(tag + " : " + "/trade/place : null");
                 Log.d("KTrader", "Order " + "/trade/place : null");
                 return null;
             }
 
             if (result.get("status") instanceof Long) {
                 String logMessage = tag + " : " + "/trade/place : " + result.toString();
-                log_info(logMessage);
+                LogInfoFormatter.logInfo(logMessage);
                 sendErrorCard("API Error", ERR_API_005.getDescription());
                 Log.d("KTrader", "Order " + logMessage);
                 return null;
@@ -223,15 +224,15 @@ public class OrderManager {
 
             if (!((String) result.get("status")).equals("0000")) {
                 String logMessage = tag + " : " + "/trade/place : " + result.toString();
-                log_info(logMessage);
-                log_info(tag + " : API 오류 상세 - Status: " + result.get("status") + ", Message: " + result.get("message"));
+                LogInfoFormatter.logInfo(logMessage);
+                LogInfoFormatter.logInfo(tag + " : API 오류 상세 - Status: " + result.get("status") + ", Message: " + result.get("message"));
                 sendErrorCard("API Error", ERR_API_005.getDescription());
                 return null;
             }
         } catch (Exception e) {
             e.printStackTrace();
             String logMessage = tag + " : " + "/trade/place : " + e.getMessage();
-            log_info(logMessage);
+            LogInfoFormatter.logInfo(logMessage);
             sendErrorCard("API Error", ERR_API_005.getDescription());
             Log.d("KTrader", "Order " + logMessage);
             return null;
@@ -242,18 +243,10 @@ public class OrderManager {
         return result;
     }
 
-    private void log_info(final String log) {
-        if (logger != null)
-            logger.info(log);
-        Intent intent = new Intent(TransactionLogPage.BROADCAST_LOG_MESSAGE);
-        intent.putExtra("log", log);
-        if (KTraderApplication.getAppContext() != null)
-            LocalBroadcastManager.getInstance(KTraderApplication.getAppContext()).sendBroadcast(intent);
-    }
 
     public JSONObject addOrderWithMarketPrice(String tag, TradeDataManager.Type type, float units) {
         Log.d("KTrader", "[OrderManager] addOrderWithMarketPrice() 시작 - tag: " + tag + ", type: " + type + ", units: " + units);
-        log_info(tag + " : 시장가 주문 시작 - " + type.toString() + " " + String.format("%.4f", units));
+        LogInfoFormatter.logInfo(tag + " : 시장가 주문 시작 - " + type.toString() + " " + String.format("%.4f", units));
         
         Api_Client api = tradeApiService.getApiService();
         JSONObject result;
@@ -316,43 +309,43 @@ public class OrderManager {
                                             String.format(Locale.getDefault(), "%,.0f", requiredAmount) + 
                                             "원, 보유: " + String.format(Locale.getDefault(), "%,.0f", krwBalance) + "원";
                                         Log.w("KTrader", "[OrderManager] " + message);
-                                        log_info(message);
+                                        LogInfoFormatter.logInfo(message);
                                         return null;
                                     }
                                     Log.d("KTrader", "[OrderManager] 잔고 확인 완료 - 시장가 매수 가능");
                                 } else {
                                     Log.e("KTrader", "[OrderManager] closing_price 정보가 null");
-                                    log_info(tag + " : 현재가 정보를 가져올 수 없습니다");
+                                    LogInfoFormatter.logInfo(tag + " : 현재가 정보를 가져올 수 없습니다");
                                     return null;
                                 }
                             } else {
                                 Log.e("KTrader", "[OrderManager] ticker data가 null");
-                                log_info(tag + " : 현재가 데이터를 가져올 수 없습니다");
+                                LogInfoFormatter.logInfo(tag + " : 현재가 데이터를 가져올 수 없습니다");
                                 return null;
                             }
                         } else {
                             Log.e("KTrader", "[OrderManager] ticker 조회 실패");
-                            log_info(tag + " : 현재가 조회에 실패했습니다");
+                            LogInfoFormatter.logInfo(tag + " : 현재가 조회에 실패했습니다");
                             return null;
                         }
                     } else {
                         Log.e("KTrader", "[OrderManager] KRW 잔고 정보가 null");
-                        log_info(tag + " : KRW 잔고 정보를 가져올 수 없습니다");
+                        LogInfoFormatter.logInfo(tag + " : KRW 잔고 정보를 가져올 수 없습니다");
                         return null;
                     }
                 } else {
                     Log.e("KTrader", "[OrderManager] 잔고 조회 실패");
-                    log_info(tag + " : 잔고 조회에 실패했습니다");
+                    LogInfoFormatter.logInfo(tag + " : 잔고 조회에 실패했습니다");
                     return null;
                 }
             } catch (Exception e) {
                 Log.e("KTrader", "[OrderManager] 잔고 확인 중 오류 발생", e);
-                log_info(tag + " : 시장가 매수 잔고 확인 중 오류 발생: " + e.getMessage());
+                LogInfoFormatter.logInfo(tag + " : 시장가 매수 잔고 확인 중 오류 발생: " + e.getMessage());
                 return null;
             }
         }
 
-        log_info(tag + " : " + type.toString() + " 시장가 발행 : " + String.format("%.4f", units) + " : ");
+        LogInfoFormatter.logInfo(tag + " : " + type.toString() + " 시장가 발행 : " + String.format("%.4f", units) + " : ");
 
         try {
             String endpoint = type == BUY ? "/trade/market_buy" : "/trade/market_sell";
@@ -367,7 +360,7 @@ public class OrderManager {
 
             if (result == null) {
                 Log.e("KTrader", "[OrderManager] API 응답이 null");
-                log_info(tag + " : " + "/trade/market_(buy/sell) : null");
+                LogInfoFormatter.logInfo(tag + " : " + "/trade/market_(buy/sell) : null");
                 return null;
             }
             
@@ -375,7 +368,7 @@ public class OrderManager {
 
             if (result.get("status") instanceof Long) {
                 String logMessage = tag + " : " + "/trade/market_(buy/sell)1 : " + result.toString();
-                log_info(logMessage);
+                LogInfoFormatter.logInfo(logMessage);
                 sendErrorCard("API Error", ERR_API_006.getDescription());
                 return null;
             }
@@ -384,8 +377,8 @@ public class OrderManager {
             if (!((String) result.get("status")).equals("0000")) {
                 String logMessage = tag + " : " + "/trade/market_(buy/sell)2 : " + result.toString();
                 Log.e("KTrader", "[OrderManager] " + logMessage);
-                log_info(logMessage);
-                log_info(tag + " : API 오류 상세 - Status: " + result.get("status") + ", Message: " + result.get("message"));
+                LogInfoFormatter.logInfo(logMessage);
+                LogInfoFormatter.logInfo(tag + " : API 오류 상세 - Status: " + result.get("status") + ", Message: " + result.get("message"));
                 sendErrorCard("API Error", ERR_API_006.getDescription());
                 return null;
             }
@@ -394,7 +387,7 @@ public class OrderManager {
         } catch (Exception e) {
             e.printStackTrace();
             String logMessage = tag + " : " + "/trade/market_(buy/sell)3 : " + e.getMessage();
-            log_info(logMessage);
+            LogInfoFormatter.logInfo(logMessage);
             sendErrorCard("API Error", ERR_API_006.getDescription());
             return null;
         }
@@ -413,22 +406,22 @@ public class OrderManager {
             result = api.callApi("POST", "/info/balance", null);
 
             if (result == null) {
-                log_info(tag + " : " + "/info/balance : null");
+                LogInfoFormatter.logInfo(tag + " : " + "/info/balance : null");
                 throw new Exception("returns null");
             }
 
             if (result.get("status") instanceof Long) {
-                log_info(tag + " : " + "/info/balance : " + result.toString());
+                LogInfoFormatter.logInfo(tag + " : " + "/info/balance : " + result.toString());
                 throw new Exception("returns null");
             }
 
             if (!((String) result.get("status")).equals("0000")) {
-                log_info(tag + " : " + "/info/balance : " + result.toString());
+                LogInfoFormatter.logInfo(tag + " : " + "/info/balance : " + result.toString());
                 throw new Exception("returns null");
             }
         } catch (Exception e) {
             e.printStackTrace();
-            log_info(tag + " : " + "/info/balance : " + e.getMessage());
+            LogInfoFormatter.logInfo(tag + " : " + "/info/balance : " + e.getMessage());
             throw new Exception("returns null");
         }
 
@@ -443,23 +436,23 @@ public class OrderManager {
             result = api.callApi("GET", "/public/orderbook/" + getCurrentCoinType(), null);
 
             if (result == null) {
-                log_info(tag + " : " + "/public/orderbook/" + getCurrentCoinType() + " : null");
+                LogInfoFormatter.logInfo(tag + " : " + "/public/orderbook/" + getCurrentCoinType() + " : null");
                 throw new Exception("returns null");
             }
 
             if (result.get("status") instanceof Long) {
-                log_info(tag + " : " + "/public/orderbook/" + getCurrentCoinType() + " : " + result.toString());
+                LogInfoFormatter.logInfo(tag + " : " + "/public/orderbook/" + getCurrentCoinType() + " : " + result.toString());
                 throw new Exception("returns null");
             }
 
             if (!((String) result.get("status")).equals("0000")) {
                 // ex ) {"message":"Database Fail","status":"5400"}
-                log_info(tag + " : " + "/public/orderbook/" + getCurrentCoinType() + " : " + result.toString());
+                LogInfoFormatter.logInfo(tag + " : " + "/public/orderbook/" + getCurrentCoinType() + " : " + result.toString());
                 throw new Exception("returns null");
             }
         } catch (Exception e) {
             e.printStackTrace();
-            log_info(tag + " : " + "/public/orderbook/" + getCurrentCoinType() + " : " + e.getMessage());
+            LogInfoFormatter.logInfo(tag + " : " + "/public/orderbook/" + getCurrentCoinType() + " : " + e.getMessage());
             throw new Exception("returns null");
         }
 
@@ -471,32 +464,28 @@ public class OrderManager {
         JSONObject result = null;
 
         try {
-            log_info(tag + " : Calling /public/ticker API...");
             result = api.callApi("GET", "/public/ticker/" + getCurrentCoinType(), null);
-            log_info(tag + " : Raw API response: " + (result != null ? result.toString() : "null"));
 
             if (result == null) {
-                log_info(tag + " : " + "/public/ticker : null");
+                LogInfoFormatter.logInfo(tag + " : " + "/public/ticker : null");
                 throw new Exception("returns null");
             }
 
             if (result.get("status") instanceof Long) {
-                log_info(tag + " : " + "/public/ticker : " + result.toString());
+                LogInfoFormatter.logInfo(tag + " : " + "/public/ticker : " + result.toString());
                 throw new Exception("returns null");
             }
 
             String status = (String) result.get("status");
-            log_info(tag + " : API status: " + status);
             
             if (!status.equals("0000")) {
-                log_info(tag + " : " + "/public/ticker : " + result.toString());
+                LogInfoFormatter.logInfo(tag + " : " + "/public/ticker : " + result.toString());
                 throw new Exception("returns null");
             }
             
-            log_info(tag + " : Ticker API call successful");
         } catch (Exception e) {
             e.printStackTrace();
-            log_info(tag + " : " + "/public/ticker : " + e.getMessage());
+            LogInfoFormatter.logInfo(tag + " : " + "/public/ticker : " + e.getMessage());
             throw new Exception("returns null");
         }
 
@@ -515,12 +504,12 @@ public class OrderManager {
             result = api.callApi("POST", "/info/orders", param);
 
             if (result == null) {
-                log_info(tag + " : " + "/info/orders : 1 : null");
+                LogInfoFormatter.logInfo(tag + " : " + "/info/orders : 1 : null");
                 throw new Exception("returns null");
             }
 
             if (result.get("status") instanceof Long) {
-                log_info(tag + " : " + "/info/orders : 2 : " + result.toString());
+                LogInfoFormatter.logInfo(tag + " : " + "/info/orders : 2 : " + result.toString());
                 throw new Exception("returns null");
             }
 
@@ -532,12 +521,12 @@ public class OrderManager {
             }
 
             if (!((String) result.get("status")).equals("0000")) {
-                log_info(tag + " : " + "/info/orders : 3 : " + result.toString());
+                LogInfoFormatter.logInfo(tag + " : " + "/info/orders : 3 : " + result.toString());
                 throw new Exception("returns null");
             }
         } catch (Exception e) {
             e.printStackTrace();
-            log_info(tag + " : " + "/info/orders : 4 : " + e.getMessage());
+            LogInfoFormatter.logInfo(tag + " : " + "/info/orders : 4 : " + e.getMessage());
             JSONArray jarr = new JSONArray();
             return jarr;
         }
@@ -560,22 +549,22 @@ public class OrderManager {
             result = api.callApi("POST", "/info/user_transactions", rgParams);
 
             if (result == null) {
-                log_info(tag + " : " + "/info/user_transactions : null");
+                LogInfoFormatter.logInfo(tag + " : " + "/info/user_transactions : null");
                 throw new Exception("returns null");
             }
 
             if (result.get("status") instanceof Long) {
-                log_info(tag + " : " + "/info/user_transactions : " + result.toString());
+                LogInfoFormatter.logInfo(tag + " : " + "/info/user_transactions : " + result.toString());
                 throw new Exception("returns null");
             }
 
             if (!((String) result.get("status")).equals("0000")) {
-                log_info(tag + " : " + "/info/user_transactions : " + result.toString());
+                LogInfoFormatter.logInfo(tag + " : " + "/info/user_transactions : " + result.toString());
                 throw new Exception("returns null");
             }
         } catch (Exception e) {
             e.printStackTrace();
-            log_info(tag + " : " + "/info/user_transactions : " + e.getMessage());
+            LogInfoFormatter.logInfo(tag + " : " + "/info/user_transactions : " + e.getMessage());
             throw new Exception("returns null");
         }
 

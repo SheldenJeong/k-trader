@@ -279,7 +279,7 @@ public class LogInfoFormatter {
      * 내부 Log4j 로깅과 브로드캐스트 전송을 담당
      * @param log 로그 메시지
      */
-    public static void log_info(String log) {
+    public static void logInfo(String log) {
         // Log4j 로깅
         if (logger != null) {
             try {
@@ -310,7 +310,7 @@ public class LogInfoFormatter {
      * @param externalLogger 외부 Log4j Logger 인스턴스
      * @param log 로그 메시지
      */
-    public static void log_info(Object externalLogger, String log) {
+    public static void logInfo(Object externalLogger, String log) {
         // Log4j 로깅
         if (externalLogger != null) {
             try {

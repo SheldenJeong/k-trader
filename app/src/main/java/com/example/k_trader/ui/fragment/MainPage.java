@@ -28,6 +28,7 @@ import com.example.k_trader.service.TradeJobService;
 import com.example.k_trader.base.GlobalSettings;
 import com.example.k_trader.base.OrderManager;
 import com.example.k_trader.base.DatabaseOrderManager;
+import com.example.k_trader.util.PriceQueueManager;
 
 import io.reactivex.Completable;
 import io.reactivex.android.schedulers.AndroidSchedulers;
@@ -577,6 +578,8 @@ public class MainPage extends Fragment {
                     // Ticker 정보에서 등락률 가져오기
                     String dailyChange = "+0.00%";
                     String hourlyChange = "+0.00%";
+                    
+                    // 24시간 등락률은 API에서 가져오기
                     try {
                         JSONObject tickerData = orderManager.getTicker("refresh");
                         if (tickerData != null && tickerData.containsKey("data")) {
@@ -600,28 +603,35 @@ public class MainPage extends Fragment {
                             } else {
                                 Log.w("KTrader", "[MainPage] fluctate_rate_24H not found, using default");
                             }
-                            
-                            // 1시간 등락폭
-                            if (data.containsKey("fluctate_rate_1H")) {
-                                String rawHourlyChange = data.get("fluctate_rate_1H").toString();
-                                Log.d("KTrader", "[MainPage] Raw hourly change (1H): " + rawHourlyChange);
-                                try {
-                                    double changeValue = Double.parseDouble(rawHourlyChange);
-                                    if (changeValue >= 0) {
-                                        hourlyChange = String.format("+%.2f%%", changeValue);
-                                    } else {
-                                        hourlyChange = String.format("%.2f%%", changeValue);
-                                    }
-                                    Log.d("KTrader", "[MainPage] Formatted hourly change (1H): " + hourlyChange);
-                                } catch (NumberFormatException e) {
-                                    Log.e("KTrader", "[MainPage] Error parsing hourly change: " + rawHourlyChange, e);
-                                }
-                            } else {
-                                Log.w("KTrader", "[MainPage] fluctate_rate_1H not found, using default");
-                            }
                         }
                     } catch (Exception e) {
                         Log.e("KTrader", "[MainPage] Error getting ticker data", e);
+                    }
+                    
+                    // 1시간 등락폭은 PriceQueueManager에서 계산
+                    try {
+                        PriceQueueManager priceManager = PriceQueueManager.getInstance();
+                        
+                        // 현재 가격을 PriceQueueManager에 추가
+                        priceManager.addPrice(currentPrice);
+                        
+                        // 큐에 충분한 데이터가 있는지 확인 (최소 2개 이상)
+                        if (priceManager.hasMinimumData(2)) {
+                            float variationRate = priceManager.getPriceVariationRate();
+                            
+                            if (variationRate >= 0) {
+                                hourlyChange = String.format("+%.2f%%", variationRate);
+                            } else {
+                                hourlyChange = String.format("%.2f%%", variationRate);
+                            }
+                            
+                            Log.d("KTrader", "[MainPage] Calculated hourly change from PriceQueueManager: " + hourlyChange);
+                            Log.d("KTrader", "[MainPage] PriceQueue status: " + priceManager.getQueueStatus());
+                        } else {
+                            Log.w("KTrader", "[MainPage] Not enough price data for hourly change calculation, using default");
+                        }
+                    } catch (Exception e) {
+                        Log.e("KTrader", "[MainPage] Error calculating hourly change from PriceQueueManager", e);
                     }
                     
                     final int finalCurrentPrice = currentPrice;

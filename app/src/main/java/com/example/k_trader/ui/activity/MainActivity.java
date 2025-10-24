@@ -1,24 +1,16 @@
 package com.example.k_trader.ui.activity;
 
-import android.app.Notification;
-import android.app.NotificationChannel;
-import android.app.NotificationManager;
-import android.app.PendingIntent;
 import android.app.job.JobScheduler;
-import android.graphics.Color;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
-import android.content.res.Resources;
-import android.graphics.BitmapFactory;
 import android.os.Build;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentPagerAdapter;
-import android.support.v4.app.NotificationCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v4.content.LocalBroadcastManager;
 import android.support.v4.view.ViewPager;
@@ -87,8 +79,7 @@ public class MainActivity extends AppCompatActivity {
         
         // Appbar TextView들 초기화
         textAppTitle = findViewById(R.id.textAppTitle);
-        textLastSyncTime = findViewById(R.id.textLastSyncTime);
-        
+
         android.util.Log.d("KTrader", "[MainActivity] Appbar TextView initialization:");
         android.util.Log.d("KTrader", "[MainActivity] textAppTitle: " + (textAppTitle != null ? "not null" : "null"));
         android.util.Log.d("KTrader", "[MainActivity] textLastSyncTime: " + (textLastSyncTime != null ? "not null" : "null"));
@@ -440,68 +431,9 @@ public class MainActivity extends AppCompatActivity {
         super.onDestroy();
         
         android.util.Log.d("KTrader", "[MainActivity] onDestroy() 시작");
-
-        try {
-            Resources res = getResources();
-
-            Intent notificationIntent = new Intent(this, MainActivity.class);
-
-            PendingIntent contentIntent = PendingIntent.getActivity(
-                this, 0, notificationIntent, 
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
-            );
-            android.util.Log.d("KTrader", "[MainActivity] PendingIntent 생성 완료");
-
-            NotificationCompat.Builder builder = new NotificationCompat.Builder(this, "exit_channel");
-
-            builder.setContentTitle("Exit program")
-                    .setContentText("OnDestroy is called")
-                    .setTicker("OnDestroy is called")
-                    .setSmallIcon(R.drawable.ic_notification)
-                    .setLargeIcon(BitmapFactory.decodeResource(res, R.mipmap.ic_launcher))
-                    .setContentIntent(contentIntent)
-                    .setAutoCancel(true)
-                    .setWhen(System.currentTimeMillis())
-                    .setDefaults(Notification.DEFAULT_ALL);
-
-            builder.setCategory(Notification.CATEGORY_MESSAGE)
-                    .setPriority(NotificationCompat.PRIORITY_HIGH)
-                    .setVisibility(Notification.VISIBILITY_PUBLIC);
-
-            android.util.Log.d("KTrader", "[MainActivity] NotificationCompat.Builder 생성 완료");
-
-            NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-
-            if (nm != null) {
-                android.util.Log.d("KTrader", "[MainActivity] NotificationManager 획득 성공");
-                
-                // 안드로이드 8.0 이상 노티피케이션을 사용하기 위해서는 하나 이상의 알림 채널을 만들어야한다.
-                NotificationChannel exitChannel = new NotificationChannel("exit_channel", "Exit Notifications", NotificationManager.IMPORTANCE_DEFAULT);
-                exitChannel.setDescription("Exit notification channel");
-                exitChannel.enableLights(true);
-                exitChannel.setLightColor(Color.RED);
-
-                android.util.Log.d("KTrader", "[MainActivity] NotificationChannel 생성 완료 - ID: exit_channel");
-                
-                nm.createNotificationChannel(exitChannel);
-                android.util.Log.d("KTrader", "[MainActivity] NotificationChannel 등록 완료");
-                
-                // 채널 생성 확인
-                NotificationChannel createdChannel = nm.getNotificationChannel("exit_channel");
-                if (createdChannel != null) {
-                    android.util.Log.d("KTrader", "[MainActivity] 채널 생성 확인 성공 - 중요도: " + createdChannel.getImportance());
-                } else {
-                    android.util.Log.e("KTrader", "[MainActivity] 채널 생성 확인 실패");
-                }
-                
-                nm.notify(999, builder.build());
-                android.util.Log.d("KTrader", "[MainActivity] Exit Notification 등록 완료 - ID: 999");
-            } else {
-                android.util.Log.e("KTrader", "[MainActivity] NotificationManager 획득 실패");
-            }
-        } catch (Exception e) {
-            android.util.Log.e("KTrader", "[MainActivity] onDestroy() Notification 오류", e);
-        }
+        
+        // 간단한 로그만 남기고 복잡한 Notification 생성은 제거
+        android.util.Log.d("KTrader", "[MainActivity] MainActivity destroyed");
     }
 
     private class adapter extends FragmentPagerAdapter {
@@ -554,6 +486,8 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public void onBackPressed() {
+        // 앱을 백그라운드로 보내기 (완전 종료하지 않음)
+        // 이렇게 하면 사용자가 홈 버튼을 누른 것과 같은 효과
         moveTaskToBack(true);
     }
 

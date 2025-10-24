@@ -30,6 +30,7 @@ import com.example.k_trader.R;
 import com.example.k_trader.ui.activity.MainActivity;
 import com.example.k_trader.ui.adapter.Listviewitem;
 import com.example.k_trader.ui.adapter.ListviewAdapter;
+import com.example.k_trader.util.LogInfoFormatter;
 import com.example.k_trader.base.OrderManager;
 import com.example.k_trader.service.TradeJobService;
 import com.example.k_trader.KTraderApplication;
@@ -335,7 +336,7 @@ public class PlacedOrderPage extends Fragment implements PopupMenu.OnMenuItemCli
 
     private void buyWithMarketPrice(int profit) {
         Log.d("KTrader", "[PlacedOrderPage] buyWithMarketPrice() 시작 - profit: " + profit);
-        log_info("시장가 매수 시작 - profit: " + profit);
+        LogInfoFormatter.logInfo("시장가 매수 시작 - profit: " + profit);
         
         // NetworkOnMainThreadException을 방지하기 위해 thread를 돌린다.
         new Thread(() -> {
@@ -346,7 +347,7 @@ public class PlacedOrderPage extends Fragment implements PopupMenu.OnMenuItemCli
             // 매수 전 잔고 확인
             try {
                 Log.d("KTrader", "[PlacedOrderPage] 잔고 확인 시작");
-                log_info("잔고 확인 중...");
+                LogInfoFormatter.logInfo("잔고 확인 중...");
                 JSONObject balanceData = orderManager.getBalance("잔고 확인");
                 Log.d("KTrader", "[PlacedOrderPage] 잔고 조회 결과: " + (balanceData != null ? "성공" : "실패"));
                 
@@ -364,23 +365,23 @@ public class PlacedOrderPage extends Fragment implements PopupMenu.OnMenuItemCli
                                 String.format(Locale.getDefault(), "%,.0f", requiredAmount) +
                                 "원, 보유: " + String.format(Locale.getDefault(), "%,.0f", krwBalance) + "원";
                             Log.w("KTrader", "[PlacedOrderPage] " + message);
-                            log_info(message);
+                            LogInfoFormatter.logInfo(message);
                             return;
                         }
                         Log.d("KTrader", "[PlacedOrderPage] 잔고 확인 완료 - 매수 가능");
                     } else {
                         Log.e("KTrader", "[PlacedOrderPage] KRW 잔고 정보가 null");
-                        log_info("KRW 잔고 정보를 가져올 수 없습니다");
+                        LogInfoFormatter.logInfo("KRW 잔고 정보를 가져올 수 없습니다");
                         return;
                     }
                 } else {
                     Log.e("KTrader", "[PlacedOrderPage] 잔고 조회 실패");
-                    log_info("잔고 조회에 실패했습니다");
+                    LogInfoFormatter.logInfo("잔고 조회에 실패했습니다");
                     return;
                 }
             } catch (Exception e) {
                 Log.e("KTrader", "[PlacedOrderPage] 잔고 확인 중 오류 발생", e);
-                log_info("잔고 확인 중 오류 발생: " + e.getMessage());
+                LogInfoFormatter.logInfo("잔고 확인 중 오류 발생: " + e.getMessage());
                 return;
             }
 
@@ -401,41 +402,41 @@ public class PlacedOrderPage extends Fragment implements PopupMenu.OnMenuItemCli
                             Log.d("KTrader", "[PlacedOrderPage] 현재 가격 조회 성공: " + currentPrice);
                         } else {
                             Log.e("KTrader", "[PlacedOrderPage] closing_price 정보가 null");
-                            log_info("현재가 정보를 가져올 수 없습니다");
+                            LogInfoFormatter.logInfo("현재가 정보를 가져올 수 없습니다");
                             return;
                         }
                     } else {
                         Log.e("KTrader", "[PlacedOrderPage] ticker data가 null");
-                        log_info("현재가 데이터를 가져올 수 없습니다");
+                        LogInfoFormatter.logInfo("현재가 데이터를 가져올 수 없습니다");
                         return;
                     }
                 } else {
                     Log.e("KTrader", "[PlacedOrderPage] ticker 조회 실패");
-                    log_info("현재가 조회에 실패했습니다");
+                    LogInfoFormatter.logInfo("현재가 조회에 실패했습니다");
                     return;
                 }
             } catch (Exception e) {
                 Log.e("KTrader", "[PlacedOrderPage] 현재가 조회 중 오류 발생", e);
-                log_info("현재가 조회 중 오류 발생: " + e.getMessage());
+                LogInfoFormatter.logInfo("현재가 조회 중 오류 발생: " + e.getMessage());
                 return;
             }
             
             if (currentPrice <= 0) {
                 Log.e("KTrader", "[PlacedOrderPage] 현재가가 유효하지 않음: " + currentPrice);
-                log_info("현재가가 유효하지 않습니다: " + currentPrice);
+                LogInfoFormatter.logInfo("현재가가 유효하지 않습니다: " + currentPrice);
                 return;
             }
             
             float units = (float) ((int) ((GlobalSettings.getInstance().getUnitPrice() / (double)currentPrice) * 10000) / 10000.0);
             Log.d("KTrader", "[PlacedOrderPage] 계산된 매수 수량: " + units);
-            log_info("시장가 매수 시도 - 수량: " + String.format("%.4f", units) + ", 현재가: " + currentPrice);
+            LogInfoFormatter.logInfo("시장가 매수 시도 - 수량: " + String.format("%.4f", units) + ", 현재가: " + currentPrice);
             
             JSONObject result = orderManager.addOrderWithMarketPrice("시장가 수동 매수 +" + profit, BUY, units);
             Log.d("KTrader", "[PlacedOrderPage] 시장가 매수 결과: " + (result != null ? "성공" : "실패"));
             
             if (result == null) {
                 Log.e("KTrader", "[PlacedOrderPage] 시장가 수동 매수 실패");
-                log_info("시장가 수동 매수 실패");
+                LogInfoFormatter.logInfo("시장가 수동 매수 실패");
                 return;
             }
             
@@ -460,38 +461,33 @@ public class PlacedOrderPage extends Fragment implements PopupMenu.OnMenuItemCli
                 // +PROFIT_PRICE 가격에 매도 요청
                 int sellPrice = (int) ((earnedPrice + (MainPage.getProfitPrice(earnedPrice) * profit)) / 1000) * 1000;
                 Log.d("KTrader", "[PlacedOrderPage] 매도 가격 계산: " + sellPrice);
-                log_info("매도 주문 시도 - 수량: " + String.format("%.4f", earnedUnits) + ", 가격: " + String.format(Locale.getDefault(), "%,d", sellPrice));
+                LogInfoFormatter.logInfo("매도 주문 시도 - 수량: " + String.format("%.4f", earnedUnits) + ", 가격: " + String.format(Locale.getDefault(), "%,d", sellPrice));
                 
                 result = orderManager.addOrder("시장가 수동 매수 +" + profit, SELL, earnedUnits, sellPrice);
                 Log.d("KTrader", "[PlacedOrderPage] 매도 주문 결과: " + (result != null ? "성공" : "실패"));
                 
                 if (result == null) {
                     Log.e("KTrader", "[PlacedOrderPage] 시장가 수동 매도 실패");
-                    log_info("시장가 수동 매도 실패");
+                    LogInfoFormatter.logInfo("시장가 수동 매도 실패");
                     return;
                 }
 
                 String resultStr = "시장가 수동 매수 +" + profit + "완료 : " + String.format(Locale.getDefault(), "%,d", earnedPrice) + " -> " + String.format(Locale.getDefault(), "%,d", earnedPrice + (MainPage.getProfitPrice(earnedPrice) * profit));
                 Log.d("KTrader", "[PlacedOrderPage] " + resultStr);
-                log_info(resultStr);
+                LogInfoFormatter.logInfo(resultStr);
 
                 // 이미 완료된 시장가 매수에 대해 Noti를 받지 않도록 시간을 업데이트 한다.
                 TradeJobService.lastNotiTimeInMillis = Calendar.getInstance().getTimeInMillis();
                 Log.d("KTrader", "[PlacedOrderPage] 알림 시간 업데이트 완료");
             } else {
                 Log.e("KTrader", "[PlacedOrderPage] 매수 실패 - 상태: " + result.get("status"));
-                log_info("매수 실패 - 상태: " + result.get("status"));
+                LogInfoFormatter.logInfo("매수 실패 - 상태: " + result.get("status"));
             }
             
             Log.d("KTrader", "[PlacedOrderPage] buyWithMarketPrice() 완료");
         }).start();
     }
 
-    private void log_info(final String log) {
-        Intent intent = new Intent(TransactionLogPage.BROADCAST_LOG_MESSAGE);
-        intent.putExtra("log", log);
-        LocalBroadcastManager.getInstance(KTraderApplication.getAppContext()).sendBroadcast(intent);
-    }
     
     @Override
     public boolean onMenuItemClick(MenuItem item) {
@@ -627,7 +623,7 @@ public class PlacedOrderPage extends Fragment implements PopupMenu.OnMenuItemCli
 
                     // 이상하게 큰 값이 나오면 에러로 판단한다.
                     if (sellUnits > 0.1) {
-                        log_info("계산된 만원 어치가 너무 큼 : " + sellUnits);
+                        LogInfoFormatter.logInfo("계산된 만원 어치가 너무 큼 : " + sellUnits);
                         return;
                     }
 
@@ -645,7 +641,7 @@ public class PlacedOrderPage extends Fragment implements PopupMenu.OnMenuItemCli
                     // 10,000원 어치 시장가 판매
                     JSONObject result = orderManager.addOrderWithMarketPrice("sell_10000_2", SELL, sellUnits);
                     if (result == null) {
-                        log_info("시장가로 10,000원 어치 매도 실패");
+                        LogInfoFormatter.logInfo("시장가로 10,000원 어치 매도 실패");
                         return;
                     }
 
@@ -660,7 +656,7 @@ public class PlacedOrderPage extends Fragment implements PopupMenu.OnMenuItemCli
                         }
                     }
 
-                    log_info("시장가 10,000원 어치 매도 성공 : " + data.getUnits() + " -> " + newUnits);
+                    LogInfoFormatter.logInfo("시장가 10,000원 어치 매도 성공 : " + data.getUnits() + " -> " + newUnits);
                 }).start();
                 return true;
             case R.id.sell_50000:
@@ -672,7 +668,7 @@ public class PlacedOrderPage extends Fragment implements PopupMenu.OnMenuItemCli
 
                     // 이상하게 큰 값이 나오면 에러로 판단한다.
                     if (sellUnits > 0.1) {
-                        log_info("계산된 만원 어치가 너무 큼 : " + sellUnits);
+                        LogInfoFormatter.logInfo("계산된 만원 어치가 너무 큼 : " + sellUnits);
                         return;
                     }
 
@@ -690,7 +686,7 @@ public class PlacedOrderPage extends Fragment implements PopupMenu.OnMenuItemCli
                     // 10,000원 어치 시장가 판매
                     JSONObject result = orderManager.addOrderWithMarketPrice("sell_50000_2", SELL, sellUnits);
                     if (result == null) {
-                        log_info("시장가로 50,000원 어치 매도 실패");
+                        LogInfoFormatter.logInfo("시장가로 50,000원 어치 매도 실패");
                         return;
                     }
 
@@ -705,7 +701,7 @@ public class PlacedOrderPage extends Fragment implements PopupMenu.OnMenuItemCli
                         }
                     }
 
-                    log_info("시장가 50,000원 어치 매도 성공 : " + data.getUnits() + " -> " + newUnits);
+                    LogInfoFormatter.logInfo("시장가 50,000원 어치 매도 성공 : " + data.getUnits() + " -> " + newUnits);
                 }).start();
                 return true;
             case R.id.cancel:
