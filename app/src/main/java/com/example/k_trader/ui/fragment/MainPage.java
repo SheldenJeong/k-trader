@@ -1,9 +1,6 @@
 package com.example.k_trader.ui.fragment;
 
-import android.app.job.JobInfo;
-import android.app.job.JobScheduler;
 import android.content.BroadcastReceiver;
-import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
@@ -47,9 +44,6 @@ import org.json.simple.JSONObject;
 
 public class MainPage extends Fragment {
 
-    public static final int JOB_ID_FIRST = 1;
-    public static final int JOB_ID_REGULAR = 2;
-
     private static final String KEY_TRADING_STATE = "KEY_TRADING_STATE";
 
     private android.support.design.widget.FloatingActionButton fabTradingToggle;
@@ -63,7 +57,6 @@ public class MainPage extends Fragment {
     private TabLayout tabLayout;
     private ViewPager viewPager;
 
-    private ComponentName component;
     private MainActivity mainActivity;
     private boolean isTradingStarted = false;
     private DatabaseOrderManager databaseOrderManager;
@@ -109,9 +102,6 @@ public class MainPage extends Fragment {
 
         // Floating Action Button 상태 초기화
         updateTradingToggleButton(isTradingStarted);
-
-        // JobScheduler 초기화
-        initializeJobScheduler();
 
         // 버튼 이벤트 설정
         setupButtonListeners();
@@ -200,29 +190,6 @@ public class MainPage extends Fragment {
     }
 
     /**
-     * JobScheduler를 초기화하는 메서드
-     */
-    private void initializeJobScheduler() {
-        // page switching으로 인한 재방문이 아닌 첫 방문일 때만 초기화 한다.
-        if (mainActivity.jobScheduler == null) {
-            component = new ComponentName(mainActivity, TradeJobService.class.getName());
-        }
-        
-        // 주기적인 데이터 동기화 설정 (5분마다)
-        if (databaseOrderManager != null) {
-            Completable periodicSync = databaseOrderManager.periodicSyncData("주기적 동기화")
-                    .subscribeOn(Schedulers.io())
-                    .observeOn(AndroidSchedulers.mainThread())
-                    .repeat()
-                    .delay(5, java.util.concurrent.TimeUnit.MINUTES)
-                    .doOnComplete(() -> Log.d("[K-TR]", "[MainPage] 주기적 데이터 동기화 완료"))
-                    .doOnError(error -> Log.e("[K-TR]", "[MainPage] 주기적 데이터 동기화 실패", error));
-            
-            disposables.add(periodicSync.subscribe());
-        }
-    }
-
-    /**
      * 버튼 이벤트 리스너를 설정하는 메서드
      */
     @SuppressWarnings("ConstantConditions")
@@ -241,15 +208,11 @@ public class MainPage extends Fragment {
      */
     private void startTrading() {
         Log.d("KTrader", "[MainPage] Start Trading button clicked");
-        Log.d("KTrader", "[MainPage] mainActivity: " + (mainActivity != null ? "not null" : "null"));
-        Log.d("KTrader", "[MainPage] component: " + (component != null ? "not null" : "null"));
         
         String packageName = mainActivity.getPackageName();
         PowerManager pm = (PowerManager) mainActivity.getSystemService(Context.POWER_SERVICE);
 
         // 배터리 최적화 무시 요청 (트레이딩 앱의 경우 백그라운드 실행이 필요)
-        // Play Store 정책에 따라 적절한 사용 사례임을 명시
-        // 트레이딩 앱은 실시간 주문 처리를 위해 백그라운드 실행이 필수적임
         if (!pm.isIgnoringBatteryOptimizations(packageName)) {
             Log.d("KTrader", "[MainPage] Requesting battery optimization exemption");
             Intent i = new Intent();
@@ -268,27 +231,10 @@ public class MainPage extends Fragment {
             Log.d("KTrader", "[MainPage] Existing buy orders canceled");
         }).start();
 
-        // JOB_ID_REGULAR가 1분 후부터 스케줄링 되기 때문에 1회성으로 한번 더 실행
-        Log.d("KTrader", "[MainPage] Creating job schedules");
-        JobInfo firstTradeJob = new JobInfo.Builder(JOB_ID_FIRST, component)
-                .setMinimumLatency(1000) // 1000 ms
-                .build();
-
-        JobInfo tradeJob = new JobInfo.Builder(JOB_ID_REGULAR, component)
-                .setMinimumLatency((long) GlobalSettings.getInstance().getTradeInterval() * 1000)
-                .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
-                .build();
-
-        Log.d("KTrader", "[MainPage] Trade interval: " + GlobalSettings.getInstance().getTradeInterval() + " seconds");
-
-        mainActivity.jobScheduler = (JobScheduler) mainActivity.getSystemService(Context.JOB_SCHEDULER_SERVICE);
-        if (mainActivity.jobScheduler != null) {
-            int firstJobResult = mainActivity.jobScheduler.schedule(firstTradeJob);
-            int regularJobResult = mainActivity.jobScheduler.schedule(tradeJob);
-            Log.d("KTrader", "[MainPage] Job scheduling results - First: " + firstJobResult + ", Regular: " + regularJobResult);
-        } else {
-            Log.e("KTrader", "[MainPage] JobScheduler is null");
-        }
+        // Foreground Service로 TradeJobService 시작
+        Log.d("KTrader", "[MainPage] Starting TradeJobService as Foreground Service");
+        Intent serviceIntent = new Intent(mainActivity, TradeJobService.class);
+        mainActivity.startService(serviceIntent);
 
         isTradingStarted = true;
         updateTradingToggleButton(isTradingStarted);
@@ -301,10 +247,10 @@ public class MainPage extends Fragment {
     private void stopTrading() {
         Log.d("KTrader", "[MainPage] Stop Trading button clicked");
         
-        if (mainActivity.jobScheduler != null) {
-            mainActivity.jobScheduler.cancelAll();
-            Log.d("KTrader", "[MainPage] All jobs canceled");
-        }
+        // Foreground Service 중지
+        Log.d("KTrader", "[MainPage] Stopping TradeJobService");
+        Intent serviceIntent = new Intent(mainActivity, TradeJobService.class);
+        mainActivity.stopService(serviceIntent);
 
         isTradingStarted = false;
         updateTradingToggleButton(isTradingStarted);
@@ -447,15 +393,6 @@ public class MainPage extends Fragment {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        
-        // JobScheduler 정리
-        if (component != null && getContext() != null) {
-            JobScheduler jobScheduler = (JobScheduler) getContext().getSystemService(Context.JOB_SCHEDULER_SERVICE);
-            if (jobScheduler != null) {
-                jobScheduler.cancel(JOB_ID_FIRST);
-                jobScheduler.cancel(JOB_ID_REGULAR);
-            }
-        }
         
         // RxJava 리소스 정리
         stopReactiveObservations();
