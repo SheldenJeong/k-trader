@@ -546,9 +546,16 @@ public class TradeJobService extends Service {
                         continue; // 다음 매수 건으로 이동
                     }
 
-                    if (unit > availableCoinBalance) {
+                    // 매수한 코인이 아직 체결되지 않은 경우와 보유 코인 부족을 구분하여 처리
+                    if (availableCoinBalance == 0.0 && unit > 0) {
+                        // 매수한 코인이 아직 체결되지 않은 경우: 매수한 수량으로 매도 주문 시도
+                        Log.d("KTrader", "[TradeJobService] 매수한 코인이 아직 체결되지 않음. 매수한 수량(" + unit + ")으로 매도 주문 시도");
+                        LogInfoFormatter.logInfo("매수한 코인이 아직 체결되지 않아 매수한 수량으로 매도 주문을 시도합니다: " + unit);
+                    } else if (unit > availableCoinBalance && availableCoinBalance > 0) {
+                        // 보유 코인이 부족한 경우: 보유 코인 수량으로 조정
                         LogInfoFormatter.logInfo(LogInfoFormatter.formatSellCorrection2(unit, availableCoinBalance));
                         unit = (float)((int)(availableCoinBalance * 10000) / 10000.0);
+                        Log.d("KTrader", "[TradeJobService] 매도 수량을 보유 잔고로 조정: " + unit);
                         
                         // 수량이 코인별 최소 거래 수량보다 작아진 경우 매도 주문 건너뜀
                         if (!coinSpecific.isTradableQuantity(unit)) {
