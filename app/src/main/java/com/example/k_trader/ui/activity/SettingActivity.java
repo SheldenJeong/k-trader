@@ -36,6 +36,28 @@ public class SettingActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_setting);
         
+        // UI 초기화를 백그라운드 스레드로 이동
+        initializeUIAsync();
+    }
+    
+    private void initializeUIAsync() {
+        new Thread(() -> {
+            try {
+                // UI 초기화 작업들을 백그라운드에서 처리
+                runOnUiThread(() -> {
+                    try {
+                        initializeUI();
+                    } catch (Exception e) {
+                        android.util.Log.e("KTrader", "[SettingActivity] UI 초기화 실패", e);
+                    }
+                });
+            } catch (Exception e) {
+                android.util.Log.e("KTrader", "[SettingActivity] 비동기 초기화 실패", e);
+            }
+        }).start();
+    }
+    
+    private void initializeUI() {
         // 테마에 따라 Status Bar 색상 동적 설정
         setStatusBarColorByTheme();
         
@@ -49,7 +71,9 @@ public class SettingActivity extends AppCompatActivity {
         txtApiKey = findViewById(R.id.editTextApiKey);
         txtApiSecret = findViewById(R.id.editTextApiSecret);
         txtUnitPrice = findViewById(R.id.editTextUnitPrice);
-        txtUnitPrice.addTextChangedListener(new NumberTextWatcherForThousand(txtUnitPrice));
+        if (txtUnitPrice != null) {
+            txtUnitPrice.addTextChangedListener(new NumberTextWatcherForThousand(txtUnitPrice));
+        }
         txtTradeInterval = findViewById(R.id.editTextTradingInterval);
         txtEarningRate = findViewById(R.id.editTextEarningRate);
         txtSlotIntervalRate = findViewById(R.id.editTextSlotIntervalRate);
@@ -80,8 +104,18 @@ public class SettingActivity extends AppCompatActivity {
         AtomicBoolean autoScrollEnabled = new AtomicBoolean(sharedPreferences.getBoolean(GlobalSettings.AUTO_SCROLL_KEY_NAME, GlobalSettings.AUTO_SCROLL_DEFAULT_VALUE));
         checkBoxAutoScroll.setChecked(autoScrollEnabled.get());
 
+        setupSaveButtonListener(autoScrollEnabled);
+    }
+    
+    private void setupSaveButtonListener(AtomicBoolean autoScrollEnabled) {
+        if (btnSave == null) {
+            android.util.Log.w("KTrader", "[SettingActivity] btnSave가 null입니다.");
+            return;
+        }
+        
         btnSave.setOnClickListener(v -> {
-            int tradeInterval = Integer.parseInt(txtTradeInterval.getText().toString().replaceAll(",", ""));
+            try {
+                int tradeInterval = Integer.parseInt(txtTradeInterval.getText().toString().replaceAll(",", ""));
             if (tradeInterval < GlobalSettings.TRADE_INTERVAL_MIN_VALUE) {
                 Toast.makeText(SettingActivity.this, "거래 주기 값이 너무 작습니다.", Toast.LENGTH_SHORT).show();
                 return;
@@ -101,6 +135,7 @@ public class SettingActivity extends AppCompatActivity {
             // Get auto scroll setting
             autoScrollEnabled.set(checkBoxAutoScroll.isChecked());
 
+            SharedPreferences sharedPreferences = getSharedPreferences("settings", MODE_PRIVATE);
             SharedPreferences.Editor prefsEditr = sharedPreferences.edit();
             prefsEditr.putString(GlobalSettings.API_KEY_KEY_NAME, txtApiKey.getText().toString());
             prefsEditr.putString(GlobalSettings.API_SECRET_KEY_NAME, txtApiSecret.getText().toString());
@@ -123,6 +158,10 @@ public class SettingActivity extends AppCompatActivity {
 
             Toast.makeText(SettingActivity.this, "설정이 저장되었습니다.", Toast.LENGTH_SHORT).show();
             finish();
+            } catch (Exception e) {
+                android.util.Log.e("KTrader", "[SettingActivity] 설정 저장 중 오류", e);
+                Toast.makeText(SettingActivity.this, "설정 저장 중 오류가 발생했습니다.", Toast.LENGTH_SHORT).show();
+            }
         });
     }
     

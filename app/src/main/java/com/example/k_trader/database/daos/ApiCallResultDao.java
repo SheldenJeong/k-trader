@@ -2,59 +2,63 @@ package com.example.k_trader.database.daos;
 
 import android.arch.persistence.room.Dao;
 import android.arch.persistence.room.Insert;
-import android.arch.persistence.room.Update;
-import android.arch.persistence.room.Delete;
+import android.arch.persistence.room.OnConflictStrategy;
 import android.arch.persistence.room.Query;
+import android.arch.persistence.room.Delete;
 
 import com.example.k_trader.database.entities.ApiCallResultEntity;
-
+import java.util.Date;
 import java.util.List;
+import io.reactivex.Flowable;
+import io.reactivex.Single;
 
 /**
- * API 호출 결과 DAO
+ * API 호출 결과 데이터 접근 객체
  */
 @Dao
 public interface ApiCallResultDao {
     
-    @Insert
-    long insertApiCallResult(ApiCallResultEntity apiCallResult);
+    // 단일 삽입
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    long insertApiCallResult(ApiCallResultEntity result);
     
-    @Insert
-    List<Long> insertApiCallResults(List<ApiCallResultEntity> apiCallResults);
+    // 배치 삽입 (성능 최적화)
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    List<Long> insertApiCallResults(List<ApiCallResultEntity> results);
     
-    @Update
-    int updateApiCallResult(ApiCallResultEntity apiCallResult);
-    
-    @Delete
-    int deleteApiCallResult(ApiCallResultEntity apiCallResult);
-    
-    @Query("SELECT * FROM api_call_results ORDER BY call_time DESC")
+    // 모든 API 호출 결과 조회
+    @Query("SELECT * FROM api_call_results ORDER BY timestamp DESC")
     List<ApiCallResultEntity> getAllApiCallResults();
     
-    @Query("SELECT * FROM api_call_results WHERE call_time >= :sinceTime ORDER BY call_time DESC")
+    // 특정 시간 이후의 API 호출 결과 조회
+    @Query("SELECT * FROM api_call_results WHERE timestamp >= :sinceTime ORDER BY timestamp DESC")
     List<ApiCallResultEntity> getApiCallResultsSince(long sinceTime);
     
-    @Query("SELECT * FROM api_call_results WHERE is_success = 1 ORDER BY call_time DESC")
+    // 성공한 API 호출 결과 조회
+    @Query("SELECT * FROM api_call_results WHERE success = 1 ORDER BY timestamp DESC")
     List<ApiCallResultEntity> getSuccessfulApiCallResults();
     
-    @Query("SELECT * FROM api_call_results WHERE is_success = 0 ORDER BY call_time DESC")
+    // 실패한 API 호출 결과 조회
+    @Query("SELECT * FROM api_call_results WHERE success = 0 ORDER BY timestamp DESC")
     List<ApiCallResultEntity> getFailedApiCallResults();
     
-    @Query("SELECT * FROM api_call_results WHERE api_endpoint = :endpoint ORDER BY call_time DESC")
+    // 특정 엔드포인트의 API 호출 결과 조회
+    @Query("SELECT * FROM api_call_results WHERE endpoint = :endpoint ORDER BY timestamp DESC")
     List<ApiCallResultEntity> getApiCallResultsByEndpoint(String endpoint);
     
-    @Query("SELECT * FROM api_call_results WHERE call_time >= :sinceTime AND call_time <= :untilTime ORDER BY call_time DESC")
-    List<ApiCallResultEntity> getApiCallResultsInRange(long sinceTime, long untilTime);
+    // 오래된 데이터 삭제
+    @Query("DELETE FROM api_call_results WHERE timestamp < :cutoffTime")
+    int deleteOldApiCallResults(long cutoffTime);
     
-    @Query("DELETE FROM api_call_results WHERE call_time < :beforeTime")
-    int deleteOldApiCallResults(long beforeTime);
-    
+    // 전체 API 호출 결과 개수 조회
     @Query("SELECT COUNT(*) FROM api_call_results")
     int getApiCallResultCount();
     
-    @Query("SELECT COUNT(*) FROM api_call_results WHERE is_success = 1")
+    // 성공한 API 호출 결과 개수 조회
+    @Query("SELECT COUNT(*) FROM api_call_results WHERE success = 1")
     int getSuccessfulApiCallResultCount();
     
-    @Query("SELECT COUNT(*) FROM api_call_results WHERE is_success = 0")
+    // 실패한 API 호출 결과 개수 조회
+    @Query("SELECT COUNT(*) FROM api_call_results WHERE success = 0")
     int getFailedApiCallResultCount();
 }

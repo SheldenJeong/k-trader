@@ -7,7 +7,7 @@ import com.example.k_trader.presentation.viewmodel.ViewModels.*;
 import com.example.k_trader.database.OrderRepository;
 import com.example.k_trader.database.CoinPriceInfoRepository;
 import com.example.k_trader.database.TransactionInfoRepository;
-import com.example.k_trader.api.service.BiThumbApiService;
+import com.example.k_trader.api.service.BithumbApiService;
 import com.example.k_trader.database.OrderDatabase;
 import com.example.k_trader.database.daos.OrderDao;
 import com.example.k_trader.database.daos.CoinPriceInfoDao;
@@ -42,7 +42,7 @@ public class DIContainer {
     private ApiCallResultDao apiCallResultDao;
     
     // API Service
-    private BiThumbApiService BiThumbApiService;
+    private BithumbApiService BithumbApiService;
     
     // Repository Implementations (기존 구조 사용)
     private OrderRepository orderRepository;
@@ -51,7 +51,8 @@ public class DIContainer {
 
     private DIContainer(Context context) {
         this.context = context.getApplicationContext();
-        initializeDependencies();
+        // 초기화를 백그라운드 스레드로 이동
+        initializeDependenciesAsync();
     }
 
     public static synchronized DIContainer getInstance(Context context) {
@@ -66,6 +67,32 @@ public class DIContainer {
             throw new IllegalStateException("DIContainer must be initialized with Context first");
         }
         return instance;
+    }
+
+    private void initializeDependenciesAsync() {
+        Log.d("KTrader", "[DIContainer] Starting async dependency initialization");
+        
+        new Thread(() -> {
+            try {
+                // 1. Database 초기화
+                initializeDatabase();
+                
+                // 2. DAOs 초기화
+                initializeDAOs();
+                
+                // 3. API Service 초기화
+                initializeApiService();
+                
+                // 4. Repository Implementations 초기화
+                initializeRepositories();
+                
+                Log.d("KTrader", "[DIContainer] All dependencies initialized successfully");
+                
+            } catch (Exception e) {
+                Log.e("KTrader", "[DIContainer] Error initializing dependencies", e);
+                // 예외가 발생해도 앱이 크래시되지 않도록 처리
+            }
+        }).start();
     }
 
     private void initializeDependencies() {
@@ -116,7 +143,7 @@ public class DIContainer {
         Log.d("KTrader", "[DIContainer] API Key: " + (apiKey != null && !apiKey.isEmpty() ? "SET" : "NOT SET"));
         Log.d("KTrader", "[DIContainer] API Secret: " + (apiSecret != null && !apiSecret.isEmpty() ? "SET" : "NOT SET"));
         
-        BiThumbApiService = new BiThumbApiService(apiKey, apiSecret);
+        BithumbApiService = new BithumbApiService(apiKey, apiSecret);
     }
 
     private void initializeRepositories() {
@@ -222,16 +249,16 @@ public class DIContainer {
     public void printDependencyGraph() {
         Log.d("KTrader", "[DIContainer] Dependency Graph:");
         Log.d("KTrader", "[DIContainer] Database: " + (database != null ? "✓" : "✗"));
-        Log.d("KTrader", "[DIContainer] API Service: " + (BiThumbApiService != null ? "✓" : "✗"));
+        Log.d("KTrader", "[DIContainer] API Service: " + (BithumbApiService != null ? "✓" : "✗"));
         Log.d("KTrader", "[DIContainer] Repositories: " + (orderRepository != null ? "✓" : "✗"));
     }
 
     // Configuration Methods (기존 구조)
     public void updateApiCredentials(String apiKey, String apiSecret) {
         Log.d("KTrader", "[DIContainer] Updating API credentials");
-        // TODO: BiThumbApiService에 updateCredentials 메서드 구현 필요
-        // if (BiThumbApiService != null) {
-        //     BiThumbApiService.updateCredentials(apiKey, apiSecret);
+        // TODO: BithumbApiService에 updateCredentials 메서드 구현 필요
+        // if (BithumbApiService != null) {
+        //     BithumbApiService.updateCredentials(apiKey, apiSecret);
         // }
     }
 
@@ -246,7 +273,7 @@ public class DIContainer {
         try {
             boolean isHealthy = isInitialized() && 
                                database.isOpen() &&
-                               BiThumbApiService != null;
+                               BithumbApiService != null;
             
             Log.d("KTrader", "[DIContainer] Health check result: " + (isHealthy ? "HEALTHY" : "UNHEALTHY"));
             return isHealthy;

@@ -32,12 +32,14 @@ public class TransactionLogPage extends Fragment implements DatabaseMonitor.Data
     public static final String BROADCAST_LOG_MESSAGE = "TRADE_LOG";
 
     private static final int MAX_BUFFER = 10000;
+    private static final long ORDER_UPDATE_THROTTLE_MS = 1000; // 1초마다만 업데이트
 
     private EditText editText;
     private ScrollView scrollView;
     private LogReceiver logReceiver;
     private DatabaseMonitor databaseMonitor;
     private String subscriberId;
+    private long lastOrderUpdateTime = 0; // 마지막 주문 업데이트 시간
 
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
@@ -92,12 +94,30 @@ public class TransactionLogPage extends Fragment implements DatabaseMonitor.Data
     @Override
     public void onOrdersChanged(List<TradeData> orders) {
         if (getActivity() != null) {
+            long currentTime = System.currentTimeMillis();
+            
+            // 무한 루프 방지: 1초마다만 업데이트
+            if (currentTime - lastOrderUpdateTime < ORDER_UPDATE_THROTTLE_MS) {
+                return;
+            }
+            lastOrderUpdateTime = currentTime;
+            
             getActivity().runOnUiThread(() -> {
-                LogInfoFormatter.logInfo("=== 주문 목록 업데이트 ===");
-                for (TradeData order : orders) {
-                    LogInfoFormatter.logInfo(order.toString());
+                try {
+                    // UI에만 표시하고 브로드캐스트하지 않음
+                    appendLogToUI("=== 주문 목록 업데이트 ===");
+                    
+                    if (orders != null && !orders.isEmpty()) {
+                        for (TradeData order : orders) {
+                            appendLogToUI(order.toString());
+                        }
+                        appendLogToUI("=== 총 " + orders.size() + "개 주문 ===");
+                    } else {
+                        appendLogToUI("=== 총 0개 주문 ===");
+                    }
+                } catch (Exception e) {
+                    android.util.Log.e("KTrader", "[TransactionLogPage] Error updating orders", e);
                 }
-                LogInfoFormatter.logInfo("=== 총 " + orders.size() + "개 주문 ===");
             });
         }
     }
@@ -124,8 +144,44 @@ public class TransactionLogPage extends Fragment implements DatabaseMonitor.Data
         public void onReceive(Context context, Intent intent) {
             if (intent.getAction() != null && intent.getAction().equals(BROADCAST_LOG_MESSAGE)) {
                 String log = intent.getStringExtra("log");
-                LogInfoFormatter.logInfo(log);
+                if (log != null && !log.isEmpty()) {
+                    // 무한 루프 방지: UI에만 표시하고 다시 브로드캐스트하지 않음
+                    appendLogToUI(log);
+                }
             }
+        }
+    }
+
+    /**
+     * 로그를 UI에 추가하는 메서드 (브로드캐스트 없이)
+     */
+    private void appendLogToUI(String log) {
+        if (editText != null && getActivity() != null) {
+            getActivity().runOnUiThread(() -> {
+                try {
+                    // 현재 시간 추가
+                    String timestamp = java.text.SimpleDateFormat.getDateTimeInstance().format(new java.util.Date());
+                    String logWithTime = "[" + timestamp + "] " + log + "\n";
+                    
+                    // 로그 추가
+                    editText.append(logWithTime);
+                    
+                    // 최대 버퍼 크기 제한
+                    String currentText = editText.getText().toString();
+                    if (currentText.length() > MAX_BUFFER) {
+                        String truncatedText = currentText.substring(currentText.length() - MAX_BUFFER);
+                        editText.setText(truncatedText);
+                    }
+                    
+                    // 자동 스크롤
+                    if (scrollView != null) {
+                        scrollView.post(() -> scrollView.fullScroll(View.FOCUS_DOWN));
+                    }
+                    
+                } catch (Exception e) {
+                    android.util.Log.e("KTrader", "[TransactionLogPage] Error appending log to UI", e);
+                }
+            });
         }
     }
 

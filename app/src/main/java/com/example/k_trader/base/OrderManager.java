@@ -4,10 +4,17 @@ import android.content.Intent;
 import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 
-import com.example.k_trader.util.LogInfoFormatter;
+import com.example.k_trader.api.models.BithumbApiModels;
+import com.example.k_trader.database.entities.BithumbApiEntities;
+import com.example.k_trader.database.daos.BithumbApiDao;
+import com.example.k_trader.database.OrderDatabase;
+import com.google.gson.Gson;
+import com.google.gson.JsonSyntaxException;
+import java.util.Date;
+import java.util.Map;
 import com.example.k_trader.ui.activity.MainActivity;
 import com.example.k_trader.KTraderApplication;
-import com.example.k_trader.ui.fragment.TransactionLogPage;
+import com.example.k_trader.util.LogInfoFormatter;
 import com.example.k_trader.bitthumb.lib.Api_Client;
 
 import org.json.simple.JSONArray;
@@ -31,6 +38,14 @@ public class OrderManager {
     private static final long safeIntervalInSec = 15;
     private static final org.apache.log4j.Logger logger = Log4jHelper.getLogger("OrderManager");
     private final TradeApiService tradeApiService;
+    
+    // API 응답 파싱 및 DB 저장을 위한 필드들
+    private final Gson gson;
+    private final OrderDatabase database;
+    private final BithumbApiDao.BithumbTickerDao tickerDao;
+    private final BithumbApiDao.BithumbBalanceDao balanceDao;
+    private final BithumbApiDao.BithumbOrderDao orderDao;
+    private final BithumbApiDao.ApiCallStatsDao apiStatsDao;
 
     public interface TradeApiService {
         Api_Client getApiService();
@@ -45,10 +60,22 @@ public class OrderManager {
 
     public OrderManager() {
         tradeApiService = new DefaultTradeApiService();
+        gson = new Gson();
+        database = OrderDatabase.getInstance(KTraderApplication.getAppContext());
+        tickerDao = database.BithumbTickerDao();
+        balanceDao = database.BithumbBalanceDao();
+        orderDao = database.BithumbOrderDao();
+        apiStatsDao = database.apiCallStatsDao();
     }
 
     public OrderManager(TradeApiService tradeApiService) {
         this.tradeApiService = tradeApiService;
+        gson = new Gson();
+        database = OrderDatabase.getInstance(KTraderApplication.getAppContext());
+        tickerDao = database.BithumbTickerDao();
+        balanceDao = database.BithumbBalanceDao();
+        orderDao = database.BithumbOrderDao();
+        apiStatsDao = database.apiCallStatsDao();
     }
 
     public boolean cancelOrder(String tag, TradeData data) {
@@ -401,27 +428,39 @@ public class OrderManager {
     public JSONObject getBalance(String tag) throws Exception {
         Api_Client api = tradeApiService.getApiService();
         JSONObject result = null;
+        long startTime = System.currentTimeMillis();
 
         try {
             result = api.callApi("POST", "/info/balance", null);
 
             if (result == null) {
                 LogInfoFormatter.logInfo(tag + " : " + "/info/balance : null");
+                saveApiStats("/info/balance", "POST", 0, System.currentTimeMillis() - startTime, false, "null response");
                 throw new Exception("returns null");
             }
 
             if (result.get("status") instanceof Long) {
                 LogInfoFormatter.logInfo(tag + " : " + "/info/balance : " + result.toString());
+                saveApiStats("/info/balance", "POST", 0, System.currentTimeMillis() - startTime, false, "invalid status type");
                 throw new Exception("returns null");
             }
 
-            if (!((String) result.get("status")).equals("0000")) {
+            String status = (String) result.get("status");
+            
+            if (!status.equals("0000")) {
                 LogInfoFormatter.logInfo(tag + " : " + "/info/balance : " + result.toString());
+                saveApiStats("/info/balance", "POST", Integer.parseInt(status), System.currentTimeMillis() - startTime, false, (String) result.get("message"));
                 throw new Exception("returns null");
             }
+            
+            // API 응답을 파싱하고 DB에 저장
+            parseAndSaveBalanceResponse(result, tag);
+            saveApiStats("/info/balance", "POST", 200, System.currentTimeMillis() - startTime, true, null);
+            
         } catch (Exception e) {
             e.printStackTrace();
             LogInfoFormatter.logInfo(tag + " : " + "/info/balance : " + e.getMessage());
+            saveApiStats("/info/balance", "POST", 500, System.currentTimeMillis() - startTime, false, e.getMessage());
             throw new Exception("returns null");
         }
 
@@ -462,17 +501,20 @@ public class OrderManager {
     public JSONObject getTicker(String tag) throws Exception {
         Api_Client api = tradeApiService.getApiService();
         JSONObject result = null;
+        long startTime = System.currentTimeMillis();
 
         try {
             result = api.callApi("GET", "/public/ticker/" + getCurrentCoinType(), null);
 
             if (result == null) {
                 LogInfoFormatter.logInfo(tag + " : " + "/public/ticker : null");
+                saveApiStats("/public/ticker", "GET", 0, System.currentTimeMillis() - startTime, false, "null response");
                 throw new Exception("returns null");
             }
 
             if (result.get("status") instanceof Long) {
                 LogInfoFormatter.logInfo(tag + " : " + "/public/ticker : " + result.toString());
+                saveApiStats("/public/ticker", "GET", 0, System.currentTimeMillis() - startTime, false, "invalid status type");
                 throw new Exception("returns null");
             }
 
@@ -480,12 +522,18 @@ public class OrderManager {
             
             if (!status.equals("0000")) {
                 LogInfoFormatter.logInfo(tag + " : " + "/public/ticker : " + result.toString());
+                saveApiStats("/public/ticker", "GET", Integer.parseInt(status), System.currentTimeMillis() - startTime, false, (String) result.get("message"));
                 throw new Exception("returns null");
             }
+            
+            // API 응답을 파싱하고 DB에 저장
+            parseAndSaveTickerResponse(result, tag);
+            saveApiStats("/public/ticker", "GET", 200, System.currentTimeMillis() - startTime, true, null);
             
         } catch (Exception e) {
             e.printStackTrace();
             LogInfoFormatter.logInfo(tag + " : " + "/public/ticker : " + e.getMessage());
+            saveApiStats("/public/ticker", "GET", 500, System.currentTimeMillis() - startTime, false, e.getMessage());
             throw new Exception("returns null");
         }
 
@@ -606,6 +654,195 @@ public class OrderManager {
             LocalBroadcastManager.getInstance(KTraderApplication.getAppContext()).sendBroadcast(intent);
         } catch (Exception e) {
             Log.e("OrderManager", "에러 카드 전송 중 오류 발생", e);
+        }
+    }
+    
+    /**
+     * Ticker API 응답을 파싱하고 DB에 저장
+     */
+    private void parseAndSaveTickerResponse(JSONObject response, String tag) {
+        try {
+            // API 응답 구조 확인을 위한 로깅
+            Log.d("KTrader", "[OrderManager] Ticker API 응답 구조 확인: " + response.toString());
+            
+            // data 필드가 JSONObject인지 확인
+            Object dataObj = response.get("data");
+            if (dataObj == null) {
+                Log.w("KTrader", "[OrderManager] Ticker API 응답에 data 필드가 없음");
+                return;
+            }
+            
+            // data가 JSONObject인 경우에만 파싱 시도
+            if (dataObj instanceof JSONObject) {
+                JSONObject dataJson = (JSONObject) dataObj;
+                String coin_pair = getCurrentCoinType() + "_KRW";
+                Date timestamp = new Date();
+                
+                // 직접 JSONObject에서 데이터 추출
+                BithumbApiEntities.BithumbTickerEntity entity = new BithumbApiEntities.BithumbTickerEntity(
+                    coin_pair,
+                    parseDouble((String) dataJson.get("opening_price")),
+                    parseDouble((String) dataJson.get("closing_price")),
+                    parseDouble((String) dataJson.get("min_price")),
+                    parseDouble((String) dataJson.get("max_price")),
+                    parseDouble((String) dataJson.get("average_price")),
+                    parseDouble((String) dataJson.get("units_traded")),
+                    parseDouble((String) dataJson.get("volume_1day")),
+                    parseDouble((String) dataJson.get("volume_7day")),
+                    parseDouble((String) dataJson.get("fluctate_24H")),
+                    parseDouble((String) dataJson.get("fluctate_rate_24H")),
+                    parseDouble((String) dataJson.get("fluctate_rate_1H")),
+                    timestamp
+                );
+                
+                // DB에 저장 (동기)
+                try {
+                    long id = tickerDao.insertTicker(entity);
+                    Log.d("KTrader", "[OrderManager] Ticker saved to DB: " + coin_pair + ", ID: " + id);
+                    LogInfoFormatter.logInfo(tag + " : Ticker 데이터를 DB에 저장 완료");
+                } catch (Exception e) {
+                    Log.e("KTrader", "[OrderManager] Error saving ticker to DB: " + coin_pair, e);
+                }
+            } else {
+                Log.w("KTrader", "[OrderManager] Ticker API 응답의 data 필드가 JSONObject가 아님: " + dataObj.getClass().getSimpleName());
+                LogInfoFormatter.logInfo(tag + " : Ticker API 응답 구조가 예상과 다름: " + dataObj.getClass().getSimpleName());
+            }
+        } catch (Exception e) {
+            Log.e("KTrader", "[OrderManager] Ticker 저장 오류", e);
+            LogInfoFormatter.logInfo(tag + " : Ticker 저장 오류: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Balance API 응답을 파싱하고 DB에 저장
+     */
+    private void parseAndSaveBalanceResponse(JSONObject response, String tag) {
+        try {
+            // API 응답 구조 확인을 위한 로깅
+            Log.d("KTrader", "[OrderManager] Balance API 응답 구조 확인: " + response.toString());
+            
+            // data 필드가 JSONObject인지 확인
+            Object dataObj = response.get("data");
+            if (dataObj == null) {
+                Log.w("KTrader", "[OrderManager] Balance API 응답에 data 필드가 없음");
+                return;
+            }
+            
+            // data가 JSONObject인 경우에만 파싱 시도
+            if (dataObj instanceof JSONObject) {
+                JSONObject dataJson = (JSONObject) dataObj;
+                Date timestamp = new Date();
+                
+                // KRW 잔고 저장
+                String totalKrw = (String) dataJson.get("total_krw");
+                if (totalKrw != null && !totalKrw.isEmpty()) {
+                    BithumbApiEntities.BithumbBalanceEntity krwEntity = new BithumbApiEntities.BithumbBalanceEntity(
+                        "KRW",
+                        parseDouble(totalKrw),
+                        parseDouble((String) dataJson.get("in_use_krw")),
+                        parseDouble((String) dataJson.get("available_krw")),
+                        timestamp
+                    );
+                    
+                    // DB에 저장 (동기)
+                    try {
+                        long id = balanceDao.insertBalance(krwEntity);
+                        Log.d("KTrader", "[OrderManager] KRW Balance saved to DB, ID: " + id);
+                    } catch (Exception e) {
+                        Log.e("KTrader", "[OrderManager] Error saving KRW balance to DB", e);
+                    }
+                }
+                
+                // BTC 잔고 저장
+                String totalBtc = (String) dataJson.get("total_btc");
+                if (totalBtc != null && !totalBtc.isEmpty()) {
+                    BithumbApiEntities.BithumbBalanceEntity btcEntity = new BithumbApiEntities.BithumbBalanceEntity(
+                        "BTC",
+                        parseDouble(totalBtc),
+                        parseDouble((String) dataJson.get("in_use_btc")),
+                        parseDouble((String) dataJson.get("available_btc")),
+                        timestamp
+                    );
+                    
+                    // DB에 저장 (동기)
+                    try {
+                        long id = balanceDao.insertBalance(btcEntity);
+                        Log.d("KTrader", "[OrderManager] BTC Balance saved to DB, ID: " + id);
+                    } catch (Exception e) {
+                        Log.e("KTrader", "[OrderManager] Error saving BTC balance to DB", e);
+                    }
+                }
+                
+                // ETH 잔고 저장
+                String totalEth = (String) dataJson.get("total_eth");
+                if (totalEth != null && !totalEth.isEmpty()) {
+                    BithumbApiEntities.BithumbBalanceEntity ethEntity = new BithumbApiEntities.BithumbBalanceEntity(
+                        "ETH",
+                        parseDouble(totalEth),
+                        parseDouble((String) dataJson.get("in_use_eth")),
+                        parseDouble((String) dataJson.get("available_eth")),
+                        timestamp
+                    );
+                    
+                    // DB에 저장 (동기)
+                    try {
+                        long id = balanceDao.insertBalance(ethEntity);
+                        Log.d("KTrader", "[OrderManager] ETH Balance saved to DB, ID: " + id);
+                    } catch (Exception e) {
+                        Log.e("KTrader", "[OrderManager] Error saving ETH balance to DB", e);
+                    }
+                }
+                
+                LogInfoFormatter.logInfo(tag + " : Balance 데이터를 DB에 저장 완료");
+            } else {
+                Log.w("KTrader", "[OrderManager] Balance API 응답의 data 필드가 JSONObject가 아님: " + dataObj.getClass().getSimpleName());
+                LogInfoFormatter.logInfo(tag + " : Balance API 응답 구조가 예상과 다름: " + dataObj.getClass().getSimpleName());
+            }
+        } catch (Exception e) {
+            Log.e("KTrader", "[OrderManager] Balance 저장 오류", e);
+            LogInfoFormatter.logInfo(tag + " : Balance 저장 오류: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * API 호출 통계를 DB에 저장
+     */
+    private void saveApiStats(String endpoint, String method, int statusCode, long responseTimeMs, boolean success, String errorMessage) {
+        try {
+            BithumbApiEntities.ApiCallStatsEntity statsEntity = new BithumbApiEntities.ApiCallStatsEntity(
+                endpoint,
+                method,
+                statusCode,
+                responseTimeMs,
+                success,
+                errorMessage,
+                new Date()
+            );
+            
+            // DB에 저장 (동기)
+            try {
+                long id = apiStatsDao.insertStats(statsEntity);
+                Log.d("KTrader", "[OrderManager] API Stats saved to DB, ID: " + id);
+            } catch (Exception e) {
+                Log.e("KTrader", "[OrderManager] Error saving API stats to DB", e);
+            }
+        } catch (Exception e) {
+            Log.e("KTrader", "[OrderManager] API Stats 저장 오류", e);
+        }
+    }
+    
+    /**
+     * 문자열을 Double로 안전하게 변환
+     */
+    private double parseDouble(String value) {
+        try {
+            if (value == null || value.trim().isEmpty()) {
+                return 0.0;
+            }
+            return Double.parseDouble(value);
+        } catch (NumberFormatException e) {
+            Log.w("KTrader", "[OrderManager] 숫자 변환 오류: " + value, e);
+            return 0.0;
         }
     }
 }

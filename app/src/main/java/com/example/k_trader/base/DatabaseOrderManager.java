@@ -57,13 +57,6 @@ public class DatabaseOrderManager {
         this.disposables = new CompositeDisposable();
     }
 
-
-
-
-
-
-
-
     /**
      * 미체결 주문 목록 조회 및 DB 동기화
      */

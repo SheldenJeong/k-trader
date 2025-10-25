@@ -64,14 +64,24 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         
-        // DIContainer 초기화
-        diContainer = DIContainer.getInstance(this);
+        // DIContainer 초기화 (비동기로 처리됨)
+        try {
+            diContainer = DIContainer.getInstance(this);
+        } catch (Exception e) {
+            android.util.Log.e("KTrader", "[MainActivity] DIContainer 초기화 실패", e);
+            // DIContainer 초기화 실패 시에도 앱이 계속 실행되도록 처리
+        }
         
-        // ViewModel 초기화
-        mainViewModel = diContainer.createMainViewModel();
-        
-        // ViewModel 관찰 설정
-        setupViewModelObservers();
+        // ViewModel 초기화 (DIContainer가 준비된 후에)
+        try {
+            if (diContainer != null) {
+                mainViewModel = diContainer.createMainViewModel();
+                // ViewModel 관찰 설정
+                setupViewModelObservers();
+            }
+        } catch (Exception e) {
+            android.util.Log.e("KTrader", "[MainActivity] ViewModel 초기화 실패", e);
+        }
         
         // Toolbar 설정
         Toolbar toolbar = findViewById(R.id.toolbar);
@@ -215,7 +225,7 @@ public class MainActivity extends AppCompatActivity {
     public boolean onOptionsItemSelected(MenuItem item) {
         int id = item.getItemId();
         
-        if (id == R.id.action_bithumb) {
+        if (id == R.id.action_Bithumb) {
             launchBithumbApp();
             return true;
         } else if (id == R.id.action_refresh) {
@@ -318,12 +328,12 @@ public class MainActivity extends AppCompatActivity {
                 String packageName = appInfo.packageName;
                 android.util.Log.d("KTrader", "[MainActivity] Checking package: " + packageName);
                 
-                if (packageName.toLowerCase().contains("bithumb") || packageName.toLowerCase().contains("btc")) {
+                if (packageName.toLowerCase().contains("Bithumb") || packageName.toLowerCase().contains("btc")) {
                     android.util.Log.d("KTrader", "[MainActivity] Found potential Bithumb app: " + packageName);
                     
                     // 특정 액티비티로 직접 실행 시도
                     Intent specificIntent = new Intent();
-                    specificIntent.setComponent(new android.content.ComponentName(packageName, "com.btckorea.bithumb.native_.presentation.MainNavigationActivity"));
+                    specificIntent.setComponent(new android.content.ComponentName(packageName, "com.btckorea.Bithumb.native_.presentation.MainNavigationActivity"));
                     specificIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                     
                     try {
@@ -348,10 +358,10 @@ public class MainActivity extends AppCompatActivity {
             
             // 가능한 빗썸 앱 패키지명들
             String[] possiblePackages = {
-                "com.btckorea.bithumb",
-                "com.bithumb.android",
-                "com.bithumb",
-                "kr.co.bithumb"
+                "com.btckorea.Bithumb",
+                "com.Bithumb.android",
+                "com.Bithumb",
+                "kr.co.Bithumb"
             };
             
             // 각 패키지명을 시도해보기
@@ -365,7 +375,7 @@ public class MainActivity extends AppCompatActivity {
                     
                     // 특정 액티비티로 직접 실행 시도
                     Intent specificIntent = new Intent();
-                    specificIntent.setComponent(new android.content.ComponentName(packageName, "com.btckorea.bithumb.native_.presentation.MainNavigationActivity"));
+                    specificIntent.setComponent(new android.content.ComponentName(packageName, "com.btckorea.Bithumb.native_.presentation.MainNavigationActivity"));
                     specificIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                     
                     try {
@@ -390,7 +400,7 @@ public class MainActivity extends AppCompatActivity {
             // 모든 방법이 실패한 경우 Play Store로 이동
             android.util.Log.d("KTrader", "[MainActivity] All methods failed, redirecting to Play Store");
             Intent playStoreIntent = new Intent(Intent.ACTION_VIEW);
-            playStoreIntent.setData(android.net.Uri.parse("market://details?id=com.btckorea.bithumb"));
+            playStoreIntent.setData(android.net.Uri.parse("market://details?id=com.btckorea.Bithumb"));
             
             if (playStoreIntent.resolveActivity(getPackageManager()) != null) {
                 android.util.Log.d("KTrader", "[MainActivity] Opening Play Store app");
@@ -400,7 +410,7 @@ public class MainActivity extends AppCompatActivity {
                 // Play Store 앱이 없는 경우 웹 브라우저로 이동
                 android.util.Log.d("KTrader", "[MainActivity] Play Store app not found, opening web browser");
                 Intent webIntent = new Intent(Intent.ACTION_VIEW);
-                webIntent.setData(android.net.Uri.parse("https://play.google.com/store/apps/details?id=com.btckorea.bithumb"));
+                webIntent.setData(android.net.Uri.parse("https://play.google.com/store/apps/details?id=com.btckorea.Bithumb"));
                 startActivity(webIntent);
                 Toast.makeText(this, "빗썸 앱을 설치해주세요.", Toast.LENGTH_LONG).show();
             }
@@ -590,7 +600,7 @@ public class MainActivity extends AppCompatActivity {
         
         // 각 메뉴 아이템의 아이콘 색상 설정
         MenuItem refreshItem = menu.findItem(R.id.action_refresh);
-        MenuItem bithumbItem = menu.findItem(R.id.action_bithumb);
+        MenuItem BithumbItem = menu.findItem(R.id.action_Bithumb);
         
         if (refreshItem != null) {
             android.graphics.drawable.Drawable refreshIcon = refreshItem.getIcon();
@@ -600,11 +610,11 @@ public class MainActivity extends AppCompatActivity {
             }
         }
         
-        if (bithumbItem != null) {
-            android.graphics.drawable.Drawable bithumbIcon = bithumbItem.getIcon();
-            if (bithumbIcon != null) {
-                bithumbIcon.setColorFilter(iconColor, android.graphics.PorterDuff.Mode.SRC_IN);
-                bithumbItem.setIcon(bithumbIcon);
+        if (BithumbItem != null) {
+            android.graphics.drawable.Drawable BithumbIcon = BithumbItem.getIcon();
+            if (BithumbIcon != null) {
+                BithumbIcon.setColorFilter(iconColor, android.graphics.PorterDuff.Mode.SRC_IN);
+                BithumbItem.setIcon(BithumbIcon);
             }
         }
     }
@@ -707,6 +717,11 @@ public class MainActivity extends AppCompatActivity {
      * ViewModel 관찰자 설정
      */
     private void setupViewModelObservers() {
+        if (mainViewModel == null) {
+            android.util.Log.w("KTrader", "[MainActivity] mainViewModel이 null입니다. 관찰자 설정을 건너뜁니다.");
+            return;
+        }
+        
         // 현재 가격 관찰
         mainViewModel.getCurrentPrice().observe(this, new Observer<com.example.k_trader.domain.model.DomainModels.CoinPriceInfo>() {
             @Override

@@ -112,9 +112,9 @@ UI Update ← ViewModel ← Repository ← Local Data ← Room Query ← Databas
 ### 1. Repository Pattern
 ```java
 public interface TickerRepository {
-    Flowable<BithumbTickerEntity> observeLatestTicker(String coinPair);
-    Completable fetchAndSaveTicker(String coinPair);
-    Single<List<BithumbTickerEntity>> getTickerHistory(String coinPair, Date fromTime, int limit);
+    Flowable<BithumbTickerEntity> observeLatestTicker(String coin_pair);
+    Completable fetchAndSaveTicker(String coin_pair);
+    Single<List<BithumbTickerEntity>> getTickerHistory(String coin_pair, Date fromTime, int limit);
 }
 ```
 
@@ -164,8 +164,8 @@ public class MainViewModel {
 ### 빗썸 API v1.2.0 엔드포인트
 
 #### 1. Public API (인증 불필요)
-- **`GET /public/ticker/{coinPair}`**: 실시간 시세 정보
-- **`GET /public/candlestick/{coinPair}/{interval}`**: 캔들스틱 차트 데이터
+- **`GET /public/ticker/{coin_pair}`**: 실시간 시세 정보
+- **`GET /public/candlestick/{coin_pair}/{interval}`**: 캔들스틱 차트 데이터
 
 #### 2. Private API (인증 필요)
 - **`GET /info/balance`**: 계좌 잔고 정보
@@ -198,13 +198,13 @@ public static class TickerData {
 
 ### 엔티티 설계
 ```java
-@Entity(tableName = "bithumb_ticker")
+@Entity(tableName = "Bithumb_ticker")
 public static class BithumbTickerEntity {
     @PrimaryKey(autoGenerate = true)
     public long id;
     
     @ColumnInfo(name = "coin_pair")
-    public String coinPair;
+    public String coin_pair;
     
     @ColumnInfo(name = "closing_price")
     public double closingPrice;
@@ -225,16 +225,16 @@ public interface BithumbTickerDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     Completable insertTicker(BithumbTickerEntity ticker);
     
-    @Query("SELECT * FROM bithumb_ticker WHERE coinPair = :coinPair ORDER BY timestamp DESC LIMIT 1")
-    Flowable<BithumbTickerEntity> observeLatestTicker(String coinPair);
+    @Query("SELECT * FROM Bithumb_ticker WHERE coin_pair = :coin_pair ORDER BY timestamp DESC LIMIT 1")
+    Flowable<BithumbTickerEntity> observeLatestTicker(String coin_pair);
     
-    @Query("SELECT * FROM bithumb_ticker WHERE coinPair = :coinPair AND timestamp >= :fromTime ORDER BY timestamp ASC LIMIT :limit")
-    Single<List<BithumbTickerEntity>> getTickerHistory(String coinPair, Date fromTime, int limit);
+    @Query("SELECT * FROM Bithumb_ticker WHERE coin_pair = :coin_pair AND timestamp >= :fromTime ORDER BY timestamp ASC LIMIT :limit")
+    Single<List<BithumbTickerEntity>> getTickerHistory(String coin_pair, Date fromTime, int limit);
 }
 ```
 
 ### 성능 최적화
-- **인덱스 활용**: `coinPair`, `timestamp` 필드에 인덱스 생성
+- **인덱스 활용**: `coin_pair`, `timestamp` 필드에 인덱스 생성
 - **배치 처리**: 여러 데이터를 한 번에 삽입
 - **데이터 정리**: 오래된 데이터 자동 삭제
 
@@ -336,7 +336,7 @@ public void testTickerRepository() {
     // Then
     result.test()
         .assertComplete()
-        .assertValue(ticker -> "BTC_KRW".equals(ticker.coinPair));
+        .assertValue(ticker -> "BTC_KRW".equals(ticker.coin_pair));
 }
 ```
 

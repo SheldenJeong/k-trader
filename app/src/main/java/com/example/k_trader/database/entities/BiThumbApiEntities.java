@@ -5,6 +5,7 @@ import android.arch.persistence.room.PrimaryKey;
 import android.arch.persistence.room.Index;
 import android.arch.persistence.room.ColumnInfo;
 import android.arch.persistence.room.TypeConverters;
+import android.arch.persistence.room.Ignore;
 import com.example.k_trader.database.converters.DateConverter;
 import java.util.Date;
 
@@ -13,16 +14,16 @@ import java.util.Date;
  * Clean Architecture의 Data Layer에 해당
  * SRP 원칙에 따라 각 엔티티는 하나의 책임만 가짐
  */
-public class BiThumbApiEntities {
+public class BithumbApiEntities {
 
     /**
      * Ticker 데이터 엔티티
      * 실시간 시세 정보를 저장
      */
     @Entity(
-        tableName = "bithumb_ticker",
+        tableName = "Bithumb_ticker",
         indices = {
-            @Index(value = {"coinPair", "timestamp"}),
+            @Index(value = {"coin_pair", "timestamp"}),
             @Index(value = {"timestamp"})
         }
     )
@@ -80,6 +81,7 @@ public class BiThumbApiEntities {
         }
         
         // 생성자
+        @Ignore
         public BithumbTickerEntity(String coinPair, double openingPrice, double closingPrice,
                                   double minPrice, double maxPrice, double averagePrice,
                                   double unitsTraded, double volume1Day, double volume7Day,
@@ -107,7 +109,7 @@ public class BiThumbApiEntities {
      * 계좌 잔고 정보를 저장
      */
     @Entity(
-        tableName = "bithumb_balance",
+        tableName = "Bithumb_balance",
         indices = {
             @Index(value = {"timestamp"}),
             @Index(value = {"currency"})
@@ -143,6 +145,7 @@ public class BiThumbApiEntities {
         }
         
         // 생성자
+        @Ignore
         public BithumbBalanceEntity(String currency, double total, double inUse, double available, Date timestamp) {
             this.currency = currency;
             this.total = total;
@@ -160,8 +163,8 @@ public class BiThumbApiEntities {
     @Entity(
         tableName = "bithumb_orders",
         indices = {
-            @Index(value = {"orderId"}),
-            @Index(value = {"coinPair", "timestamp"}),
+            @Index(value = {"order_id"}),
+            @Index(value = {"coin_pair", "timestamp"}),
             @Index(value = {"type", "status"}),
             @Index(value = {"timestamp"})
         }
@@ -174,7 +177,7 @@ public class BiThumbApiEntities {
         public String orderId;
         
         @ColumnInfo(name = "coin_pair")
-        public String coinPair; // BTC_KRW, ETH_KRW 등
+        public String coin_pair; // BTC_KRW, ETH_KRW 등
         
         @ColumnInfo(name = "type")
         public String type; // bid (매수), ask (매도)
@@ -226,12 +229,13 @@ public class BiThumbApiEntities {
         }
         
         // 생성자
-        public BithumbOrderEntity(String orderId, String coinPair, String type, String status,
+        @Ignore
+        public BithumbOrderEntity(String orderId, String coin_pair, String type, String status,
                                 double orderPrice, double orderQty, double execQty, double execPrice,
                                 double execAmount, double execFee, Date orderDate, Date execDate,
                                 Date cancelDate, Date timestamp) {
             this.orderId = orderId;
-            this.coinPair = coinPair;
+            this.coin_pair = coin_pair;
             this.type = type;
             this.status = status;
             this.orderPrice = orderPrice;
@@ -255,9 +259,9 @@ public class BiThumbApiEntities {
     @Entity(
         tableName = "bithumb_candlestick",
         indices = {
-            @Index(value = {"coinPair", "interval", "timestamp"}),
+            @Index(value = {"coin_pair", "interval", "timestamp"}),
             @Index(value = {"timestamp"}),
-            @Index(value = {"coinPair", "interval"})
+            @Index(value = {"coin_pair", "interval"})
         }
     )
     public static class BithumbCandlestickEntity {
@@ -265,7 +269,7 @@ public class BiThumbApiEntities {
         public long id;
         
         @ColumnInfo(name = "coin_pair")
-        public String coinPair; // BTC_KRW, ETH_KRW 등
+        public String coin_pair; // BTC_KRW, ETH_KRW 등
         
         @ColumnInfo(name = "interval")
         public String interval; // 1m, 3m, 5m, 10m, 30m, 1h, 6h, 12h, 24h
@@ -299,9 +303,10 @@ public class BiThumbApiEntities {
         }
         
         // 생성자
-        public BithumbCandlestickEntity(String coinPair, String interval, Date timestamp,
+        @Ignore
+        public BithumbCandlestickEntity(String coin_pair, String interval, Date timestamp,
                                       double open, double close, double high, double low, double volume) {
-            this.coinPair = coinPair;
+            this.coin_pair = coin_pair;
             this.interval = interval;
             this.timestamp = timestamp;
             this.open = open;
@@ -360,6 +365,7 @@ public class BiThumbApiEntities {
         }
         
         // 생성자
+        @Ignore
         public ApiCallStatsEntity(String endpoint, String method, int statusCode,
                                 long responseTimeMs, boolean success, String errorMessage, Date timestamp) {
             this.endpoint = endpoint;

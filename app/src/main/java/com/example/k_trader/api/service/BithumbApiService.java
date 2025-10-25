@@ -1,6 +1,6 @@
 package com.example.k_trader.api.service;
 
-import com.example.k_trader.api.models.BiThumbApiModels.*;
+import com.example.k_trader.api.models.BithumbApiModels.*;
 import io.reactivex.Single;
 import io.reactivex.schedulers.Schedulers;
 
@@ -29,7 +29,7 @@ import android.util.Base64;
  * Clean Architecture의 Data Layer에 해당
  * SRP 원칙에 따라 API 호출과 데이터 파싱만 담당
  */
-public class BiThumbApiService {
+public class BithumbApiService {
     
     private static final String BASE_URL = "https://api.bithumb.com";
     private static final String PUBLIC_API_BASE = BASE_URL + "/public";
@@ -40,7 +40,7 @@ public class BiThumbApiService {
     private final String apiKey;
     private final String apiSecret;
     
-    public BiThumbApiService(String apiKey, String apiSecret) {
+    public BithumbApiService(String apiKey, String apiSecret) {
         this.apiKey = apiKey;
         this.apiSecret = apiSecret;
         this.gson = new Gson();
@@ -58,9 +58,9 @@ public class BiThumbApiService {
      * Ticker 정보 조회
      * GET /public/ticker/{order_currency}_{payment_currency}
      */
-    public Single<TickerResponse> getTicker(String coinPair) {
+    public Single<TickerResponse> getTicker(String coin_pair) {
         return Single.fromCallable(() -> {
-            String url = PUBLIC_API_BASE + "/ticker/" + coinPair;
+            String url = PUBLIC_API_BASE + "/ticker/" + coin_pair;
             Request request = new Request.Builder()
                     .url(url)
                     .get()
@@ -69,7 +69,7 @@ public class BiThumbApiService {
             try (Response response = httpClient.newCall(request).execute()) {
                 if (response.isSuccessful() && response.body() != null) {
                     String responseBody = response.body().string();
-                    Log.d("KTrader", "[BiThumbApiService] Ticker response: " + responseBody);
+                    Log.d("KTrader", "[BithumbApiService] Ticker response: " + responseBody);
                     return gson.fromJson(responseBody, TickerResponse.class);
                 } else {
                     throw new IOException("HTTP " + response.code() + ": " + response.message());
@@ -77,7 +77,7 @@ public class BiThumbApiService {
             }
         })
         .subscribeOn(Schedulers.io())
-        .doOnError(error -> Log.e("KTrader", "[BiThumbApiService] Error getting ticker for " + coinPair, error));
+        .doOnError(error -> Log.e("KTrader", "[BithumbApiService] Error getting ticker for " + coin_pair, error));
     }
     
     /**
@@ -95,7 +95,7 @@ public class BiThumbApiService {
             try (Response response = httpClient.newCall(request).execute()) {
                 if (response.isSuccessful() && response.body() != null) {
                     String responseBody = response.body().string();
-                    Log.d("KTrader", "[BiThumbApiService] Balance response: " + responseBody);
+                    Log.d("KTrader", "[BithumbApiService] Balance response: " + responseBody);
                     return gson.fromJson(responseBody, BalanceResponse.class);
                 } else {
                     throw new IOException("HTTP " + response.code() + ": " + response.message());
@@ -103,7 +103,7 @@ public class BiThumbApiService {
             }
         })
         .subscribeOn(Schedulers.io())
-        .doOnError(error -> Log.e("KTrader", "[BiThumbApiService] Error getting balance", error));
+        .doOnError(error -> Log.e("KTrader", "[BithumbApiService] Error getting balance", error));
     }
     
     /**
@@ -122,14 +122,14 @@ public class BiThumbApiService {
             try (Response response = httpClient.newCall(request).execute()) {
                 if (response.isSuccessful() && response.body() != null) {
                     String responseBody = response.body().string();
-                    Log.d("KTrader", "[BiThumbApiService] Orders response: " + responseBody);
+                    Log.d("KTrader", "[BithumbApiService] Orders response: " + responseBody);
                     
                     // JSON 파싱하여 상태 코드 확인
                     JSONObject jsonResponse = new JSONObject();
                     try {
                         jsonResponse = (JSONObject) new org.json.simple.parser.JSONParser().parse(responseBody);
                     } catch (Exception e) {
-                        Log.e("KTrader", "[BiThumbApiService] JSON parsing error", e);
+                        Log.e("KTrader", "[BithumbApiService] JSON parsing error", e);
                         throw new IOException("JSON parsing error: " + e.getMessage());
                     }
                     
@@ -139,7 +139,7 @@ public class BiThumbApiService {
                     if (status.equals("5600")) {
                         String message = String.valueOf(jsonResponse.get("message"));
                         if (message.equals("거래 진행중인 내역이 존재하지 않습니다.")) {
-                            Log.d("KTrader", "[BiThumbApiService] No pending orders found");
+                            Log.d("KTrader", "[BithumbApiService] No pending orders found");
                             // 빈 데이터로 응답 생성
                             OrdersResponse emptyResponse = new OrdersResponse();
                             emptyResponse.status = "0000";
@@ -149,7 +149,7 @@ public class BiThumbApiService {
                     }
                     
                     if (!status.equals("0000")) {
-                        Log.e("KTrader", "[BiThumbApiService] Orders API error: " + responseBody);
+                        Log.e("KTrader", "[BithumbApiService] Orders API error: " + responseBody);
                         throw new IOException("API Error: " + status + " - " + jsonResponse.get("message"));
                     }
                     
@@ -160,16 +160,16 @@ public class BiThumbApiService {
             }
         })
         .subscribeOn(Schedulers.io())
-        .doOnError(error -> Log.e("KTrader", "[BiThumbApiService] Error getting orders for " + coinType, error));
+        .doOnError(error -> Log.e("KTrader", "[BithumbApiService] Error getting orders for " + coinType, error));
     }
     
     /**
      * 캔들스틱 데이터 조회
      * GET /public/candlestick/{order_currency}_{payment_currency}/{chart_intervals}
      */
-    public Single<CandlestickResponse> getCandlesticks(String coinPair, String interval, int limit) {
+    public Single<CandlestickResponse> getCandlesticks(String coin_pair, String interval, int limit) {
         return Single.fromCallable(() -> {
-            String url = PUBLIC_API_BASE + "/candlestick/" + coinPair + "/" + interval;
+            String url = PUBLIC_API_BASE + "/candlestick/" + coin_pair + "/" + interval;
             Request request = new Request.Builder()
                     .url(url)
                     .get()
@@ -178,7 +178,7 @@ public class BiThumbApiService {
             try (Response response = httpClient.newCall(request).execute()) {
                 if (response.isSuccessful() && response.body() != null) {
                     String responseBody = response.body().string();
-                    Log.d("KTrader", "[BiThumbApiService] Candlestick response: " + responseBody);
+                    Log.d("KTrader", "[BithumbApiService] Candlestick response: " + responseBody);
                     return gson.fromJson(responseBody, CandlestickResponse.class);
                 } else {
                     throw new IOException("HTTP " + response.code() + ": " + response.message());
@@ -186,19 +186,19 @@ public class BiThumbApiService {
             }
         })
         .subscribeOn(Schedulers.io())
-        .doOnError(error -> Log.e("KTrader", "[BiThumbApiService] Error getting candlesticks for " + coinPair + " " + interval, error));
+        .doOnError(error -> Log.e("KTrader", "[BithumbApiService] Error getting candlesticks for " + coin_pair + " " + interval, error));
     }
     
     /**
      * 주문 등록
      * POST /trade/place
      */
-    public Single<PlaceOrderResponse> placeOrder(String coinPair, String type, String units, String price) {
+    public Single<PlaceOrderResponse> placeOrder(String coin_pair, String type, String units, String price) {
         return Single.fromCallable(() -> {
             String url = BASE_URL + "/trade/place";
             Map<String, String> params = new HashMap<>();
-            params.put("order_currency", coinPair.split("_")[0]);
-            params.put("payment_currency", coinPair.split("_")[1]);
+            params.put("order_currency", coin_pair.split("_")[0]);
+            params.put("payment_currency", coin_pair.split("_")[1]);
             params.put("units", units);
             params.put("price", price);
             params.put("type", type); // bid (매수) or ask (매도)
@@ -208,7 +208,7 @@ public class BiThumbApiService {
             try (Response response = httpClient.newCall(request).execute()) {
                 if (response.isSuccessful() && response.body() != null) {
                     String responseBody = response.body().string();
-                    Log.d("KTrader", "[BiThumbApiService] Place order response: " + responseBody);
+                    Log.d("KTrader", "[BithumbApiService] Place order response: " + responseBody);
                     return gson.fromJson(responseBody, PlaceOrderResponse.class);
                 } else {
                     throw new IOException("HTTP " + response.code() + ": " + response.message());
@@ -216,27 +216,27 @@ public class BiThumbApiService {
             }
         })
         .subscribeOn(Schedulers.io())
-        .doOnError(error -> Log.e("KTrader", "[BiThumbApiService] Error placing order", error));
+        .doOnError(error -> Log.e("KTrader", "[BithumbApiService] Error placing order", error));
     }
     
     /**
      * 주문 취소
      * POST /trade/cancel
      */
-    public Single<String> cancelOrder(String orderId, String coinPair) {
+    public Single<String> cancelOrder(String orderId, String coin_pair) {
         return Single.fromCallable(() -> {
             String url = BASE_URL + "/trade/cancel";
             Map<String, String> params = new HashMap<>();
             params.put("order_id", orderId);
-            params.put("order_currency", coinPair.split("_")[0]);
-            params.put("payment_currency", coinPair.split("_")[1]);
+            params.put("order_currency", coin_pair.split("_")[0]);
+            params.put("payment_currency", coin_pair.split("_")[1]);
             
             Request request = createAuthenticatedRequest(url, params);
             
             try (Response response = httpClient.newCall(request).execute()) {
                 if (response.isSuccessful() && response.body() != null) {
                     String responseBody = response.body().string();
-                    Log.d("KTrader", "[BiThumbApiService] Cancel order response: " + responseBody);
+                    Log.d("KTrader", "[BithumbApiService] Cancel order response: " + responseBody);
                     return responseBody;
                 } else {
                     throw new IOException("HTTP " + response.code() + ": " + response.message());
@@ -244,7 +244,7 @@ public class BiThumbApiService {
             }
         })
         .subscribeOn(Schedulers.io())
-        .doOnError(error -> Log.e("KTrader", "[BiThumbApiService] Error canceling order", error));
+        .doOnError(error -> Log.e("KTrader", "[BithumbApiService] Error canceling order", error));
     }
     
     /**
@@ -302,7 +302,7 @@ public class BiThumbApiService {
             return Base64.encodeToString(signatureBytes, Base64.NO_WRAP);
             
         } catch (Exception e) {
-            Log.e("KTrader", "[BiThumbApiService] Error generating API signature", e);
+            Log.e("KTrader", "[BithumbApiService] Error generating API signature", e);
             return "error_signature";
         }
     }
@@ -316,12 +316,12 @@ public class BiThumbApiService {
             Request request = chain.request();
             long startTime = System.currentTimeMillis();
             
-            Log.d("KTrader", "[BiThumbApiService] API Request: " + request.method() + " " + request.url());
+            Log.d("KTrader", "[BithumbApiService] API Request: " + request.method() + " " + request.url());
             
             Response response = chain.proceed(request);
             long endTime = System.currentTimeMillis();
             
-            Log.d("KTrader", "[BiThumbApiService] API Response: " + response.code() + " (" + (endTime - startTime) + "ms)");
+            Log.d("KTrader", "[BithumbApiService] API Response: " + response.code() + " (" + (endTime - startTime) + "ms)");
             
             return response;
         }
@@ -336,7 +336,7 @@ public class BiThumbApiService {
             Response response = chain.proceed(chain.request());
             
             if (!response.isSuccessful()) {
-                Log.e("KTrader", "[BiThumbApiService] API Error: " + response.code() + " " + response.message());
+                Log.e("KTrader", "[BithumbApiService] API Error: " + response.code() + " " + response.message());
             }
             
             return response;

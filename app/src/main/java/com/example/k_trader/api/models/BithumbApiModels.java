@@ -8,7 +8,7 @@ import java.util.List;
  * 빗썸 API v1.2.0 응답을 위한 타입 안전한 모델 클래스들
  * Clean Architecture의 Data Layer에 해당
  */
-public class BiThumbApiModels {
+public class BithumbApiModels {
 
     /**
      * 공통 API 응답 구조

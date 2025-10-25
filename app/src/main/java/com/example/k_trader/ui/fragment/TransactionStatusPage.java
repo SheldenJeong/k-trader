@@ -267,7 +267,7 @@ public class TransactionStatusPage extends Fragment implements DatabaseMonitor.D
         try {
             StringBuilder jsonBuilder = new StringBuilder();
             jsonBuilder.append("{\n");
-            jsonBuilder.append("  \"server_url\": \"https://api.bithumb.com").append(apiEndpoint).append("\",\n");
+            jsonBuilder.append("  \"server_url\": \"https://api.Bithumb.com").append(apiEndpoint).append("\",\n");
             jsonBuilder.append("  \"api_endpoint\": \"").append(apiEndpoint).append("\",\n");
             jsonBuilder.append("  \"error_code\": \"").append(errorCode != null ? errorCode : "Unknown").append("\",\n");
             jsonBuilder.append("  \"server_message\": \"").append(serverErrorMessage != null ? serverErrorMessage.replace("\"", "\\\"") : "No message").append("\",\n");

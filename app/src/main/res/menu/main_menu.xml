@@ -9,9 +9,9 @@
         app:showAsAction="never" />
 
     <item
-        android:id="@+id/action_bithumb"
+        android:id="@+id/action_Bithumb"
         android:title="빗썸 앱 실행"
-        android:icon="@drawable/ic_bithumb"
+        android:icon="@drawable/ic_refresh"
         app:showAsAction="always" />
 
     <item

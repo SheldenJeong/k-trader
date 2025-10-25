@@ -280,6 +280,15 @@ public class LogInfoFormatter {
      * @param log 로그 메시지
      */
     public static void logInfo(String log) {
+        logInfo(log, true); // 기본적으로 브로드캐스트 전송
+    }
+    
+    /**
+     * 로그 정보를 처리하는 메인 함수 (브로드캐스트 제어 가능)
+     * @param log 로그 메시지
+     * @param sendBroadcast 브로드캐스트 전송 여부
+     */
+    public static void logInfo(String log, boolean sendBroadcast) {
         // Log4j 로깅
         if (logger != null) {
             try {
@@ -289,18 +298,20 @@ public class LogInfoFormatter {
             }
         }
         
-        // 브로드캐스트 전송
-        try {
-            Intent intent = new Intent(TransactionLogPage.BROADCAST_LOG_MESSAGE);
-            intent.putExtra("log", log);
-            if (KTraderApplication.getAppContext() != null) {
-                LocalBroadcastManager manager = LocalBroadcastManager.getInstance(KTraderApplication.getAppContext());
-                if (manager != null) {
-                    manager.sendBroadcast(intent);
+        // 브로드캐스트 전송 (조건부)
+        if (sendBroadcast) {
+            try {
+                Intent intent = new Intent(TransactionLogPage.BROADCAST_LOG_MESSAGE);
+                intent.putExtra("log", log);
+                if (KTraderApplication.getAppContext() != null) {
+                    LocalBroadcastManager manager = LocalBroadcastManager.getInstance(KTraderApplication.getAppContext());
+                    if (manager != null) {
+                        manager.sendBroadcast(intent);
+                    }
                 }
+            } catch (Exception e) {
+                Log.e(TAG, "[LogInfoFormatter] Error sending broadcast", e);
             }
-        } catch (Exception e) {
-            Log.e(TAG, "[LogInfoFormatter] Error sending broadcast", e);
         }
     }
     
@@ -311,6 +322,16 @@ public class LogInfoFormatter {
      * @param log 로그 메시지
      */
     public static void logInfo(Object externalLogger, String log) {
+        logInfo(externalLogger, log, true); // 기본적으로 브로드캐스트 전송
+    }
+    
+    /**
+     * 로그 정보를 처리하는 메인 함수 (외부 logger 사용, 브로드캐스트 제어 가능)
+     * @param externalLogger 외부 Log4j Logger 인스턴스
+     * @param log 로그 메시지
+     * @param sendBroadcast 브로드캐스트 전송 여부
+     */
+    public static void logInfo(Object externalLogger, String log, boolean sendBroadcast) {
         // Log4j 로깅
         if (externalLogger != null) {
             try {
@@ -325,18 +346,20 @@ public class LogInfoFormatter {
             }
         }
         
-        // 브로드캐스트 전송
-        try {
-            Intent intent = new Intent(TransactionLogPage.BROADCAST_LOG_MESSAGE);
-            intent.putExtra("log", log);
-            if (KTraderApplication.getAppContext() != null) {
-                LocalBroadcastManager manager = LocalBroadcastManager.getInstance(KTraderApplication.getAppContext());
-                if (manager != null) {
-                    manager.sendBroadcast(intent);
+        // 브로드캐스트 전송 (조건부)
+        if (sendBroadcast) {
+            try {
+                Intent intent = new Intent(TransactionLogPage.BROADCAST_LOG_MESSAGE);
+                intent.putExtra("log", log);
+                if (KTraderApplication.getAppContext() != null) {
+                    LocalBroadcastManager manager = LocalBroadcastManager.getInstance(KTraderApplication.getAppContext());
+                    if (manager != null) {
+                        manager.sendBroadcast(intent);
+                    }
                 }
+            } catch (Exception e) {
+                Log.e(TAG, "[LogInfoFormatter] Error sending broadcast", e);
             }
-        } catch (Exception e) {
-            Log.e(TAG, "[LogInfoFormatter] Error sending broadcast", e);
         }
     }
     

@@ -124,10 +124,10 @@ public class KTraderApplication extends Application {
 ```java
 // RepositoryImplementations.java 수정 예시
 public class TradeRepositoryImpl implements TradeRepository {
-    private final BiThumbApiService apiService;
+    private final BithumbApiService apiService;
     private final BithumbOrderDao orderDao;
     
-    public TradeRepositoryImpl(BiThumbApiService apiService, BithumbOrderDao orderDao) {
+    public TradeRepositoryImpl(BithumbApiService apiService, BithumbOrderDao orderDao) {
         this.apiService = apiService;
         this.orderDao = orderDao;
     }

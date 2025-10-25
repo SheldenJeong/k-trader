@@ -1,9 +1,11 @@
 package com.example.k_trader.data;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.Intent;
 import android.support.v4.content.LocalBroadcastManager;
 import com.example.k_trader.KTraderApplication;
+import com.example.k_trader.database.OrderDatabase;
 import com.example.k_trader.database.entities.ErrorEntity;
 import com.example.k_trader.ui.fragment.TransactionStatusPage;
 import com.example.k_trader.database.ErrorRepository;
@@ -43,7 +45,7 @@ public class TransactionDataManager {
         this.cacheService = TransactionCacheService.getInstance(context);
         this.errorRepository = ErrorRepository.getInstance(context);
         this.apiCallResultRepository = ApiCallResultRepository.getInstance(
-            com.example.k_trader.database.OrderDatabase.getInstance(context).apiCallResultDao());
+            OrderDatabase.getInstance(context).apiCallResultDao());
         this.transactionInfoRepository = new TransactionInfoRepository(context);
         this.executorService = Executors.newSingleThreadExecutor();
     }
@@ -157,6 +159,7 @@ public class TransactionDataManager {
     /**
      * Transaction 데이터를 DB에 저장
      */
+    @SuppressLint("CheckResult")
     private void saveTransactionDataToDatabase(TransactionData data, boolean isFromServer) {
         try {
             TransactionInfoEntity entity = new TransactionInfoEntity(
@@ -538,7 +541,7 @@ public class TransactionDataManager {
             try {
                 errorRepository.resolveError(errorId, resolutionNote)
                         .subscribe(
-                            result -> {
+                            () -> {
                                 android.util.Log.d("TransactionDataManager", 
                                     "Error resolved: " + errorId);
                             },
