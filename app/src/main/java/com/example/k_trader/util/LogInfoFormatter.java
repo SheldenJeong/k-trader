@@ -55,18 +55,42 @@ public class LogInfoFormatter {
     }
     
     /**
-     * 예상 잔고 정보를 포맷팅하여 반환
+     * 예상 잔고 정보를 포맷팅하여 반환 (코인 타입 포함)
+     * @param estimatedBalance 예상 잔고
+     * @param krwBalance KRW 잔고
+     * @param coinType 코인 타입
+     * @return 포맷팅된 예상 잔고 문자열
+     */
+    public static String formatEstimatedBalance(long estimatedBalance, long krwBalance, String coinType) {
+        return coinType + " 예상잔고 : " + String.format(Locale.getDefault(), "%,d", estimatedBalance)
+                + "\n" + "주문가능원화 (" + String.format(Locale.getDefault(), "%,d", krwBalance) + ")";
+    }
+    
+    /**
+     * 예상 잔고 정보를 포맷팅하여 반환 (기존 호환성)
      * @param estimatedBalance 예상 잔고
      * @param krwBalance KRW 잔고
      * @return 포맷팅된 예상 잔고 문자열
      */
     public static String formatEstimatedBalance(long estimatedBalance, long krwBalance) {
         return "예상잔고 : " + String.format(Locale.getDefault(), "%,d", estimatedBalance)
-                + " , 주문가능원화 (" + String.format(Locale.getDefault(), "%,d", krwBalance) + ")";
+                + "\n" + "주문가능원화 (" + String.format(Locale.getDefault(), "%,d", krwBalance) + ")";
     }
     
     /**
-     * 매도 완료 시 잔고 정보를 포맷팅하여 반환
+     * 매도 완료 시 잔고 정보를 포맷팅하여 반환 (코인 타입 포함)
+     * @param sellCompleteBalance 매도 완료 시 잔고
+     * @param orderBalance 주문 잔고
+     * @param coinType 코인 타입
+     * @return 포맷팅된 매도 완료 잔고 문자열
+     */
+    public static String formatSellCompleteBalance(long sellCompleteBalance, long orderBalance, String coinType) {
+        return coinType + " 매도완료시: " + String.format(Locale.getDefault(), "%,d", sellCompleteBalance)
+                + "\n" + "주문잔고: " + String.format(Locale.getDefault(), "%,d", orderBalance);
+    }
+    
+    /**
+     * 매도 완료 시 잔고 정보를 포맷팅하여 반환 (기존 호환성)
      * @param sellCompleteBalance 매도 완료 시 잔고
      * @param orderBalance 주문 잔고
      * @return 포맷팅된 매도 완료 잔고 문자열

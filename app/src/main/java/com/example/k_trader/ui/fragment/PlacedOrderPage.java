@@ -292,7 +292,12 @@ public class PlacedOrderPage extends Fragment implements PopupMenu.OnMenuItemCli
 
                                 // 원래 order 취소
                                 if (!orderManager.cancelOrder("OrderListPage_Up_10", data)) {
-                                    Toast.makeText(mainActivity.getApplicationContext(), "Order 취소 실패", Toast.LENGTH_LONG).show();
+                                    mainActivity.runOnUiThread(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            Toast.makeText(mainActivity.getApplicationContext(), "Order 취소 실패", Toast.LENGTH_LONG).show();
+                                        }
+                                    });
                                     return;
                                 }
 
@@ -318,7 +323,12 @@ public class PlacedOrderPage extends Fragment implements PopupMenu.OnMenuItemCli
 
                                 // order 취소
                                 if (!orderManager.cancelOrder("OrderListPage_Delete_1", data)) {
-                                    Toast.makeText(mainActivity.getApplicationContext(), "Order 취소 실패", Toast.LENGTH_LONG).show();
+                                    mainActivity.runOnUiThread(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            Toast.makeText(mainActivity.getApplicationContext(), "Order 취소 실패", Toast.LENGTH_LONG).show();
+                                        }
+                                    });
                                     return;
                                 }
                             }
@@ -518,7 +528,12 @@ public class PlacedOrderPage extends Fragment implements PopupMenu.OnMenuItemCli
 
                     // 원래 order 취소
                     if (!orderManager.cancelOrder("OrderListPage_Up_1", data)) {
-                        Toast.makeText(mainActivity.getApplicationContext(), "Order 취소 실패", Toast.LENGTH_LONG).show();
+                        mainActivity.runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                Toast.makeText(mainActivity.getApplicationContext(), "Order 취소 실패", Toast.LENGTH_LONG).show();
+                            }
+                        });
                         return;
                     }
 
@@ -527,7 +542,12 @@ public class PlacedOrderPage extends Fragment implements PopupMenu.OnMenuItemCli
                     if (targetData != null) {
                         // 이미 동일 가격의 order가 있다면 취소 하고 합쳐서 추가
                         if (!orderManager.cancelOrder("OrderListPage_Up_2", targetData)) {
-                            Toast.makeText(mainActivity.getApplicationContext(), "High Order 취소 실패", Toast.LENGTH_LONG).show();
+                            mainActivity.runOnUiThread(new Runnable() {
+                                @Override
+                                public void run() {
+                                    Toast.makeText(mainActivity.getApplicationContext(), "High Order 취소 실패", Toast.LENGTH_LONG).show();
+                                }
+                            });
                             return;
                         }
 
@@ -598,7 +618,12 @@ public class PlacedOrderPage extends Fragment implements PopupMenu.OnMenuItemCli
 
                             // cancel original orders
                             if (!orderManager.cancelOrder("OrderListPage_Down_367", data2)) {
-                                Toast.makeText(mainActivity.getApplicationContext(), "Order 취소 실패", Toast.LENGTH_LONG).show();
+                                mainActivity.runOnUiThread(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        Toast.makeText(mainActivity.getApplicationContext(), "Order 취소 실패", Toast.LENGTH_LONG).show();
+                                    }
+                                });
                                 return;
                             }
                         }
@@ -634,7 +659,12 @@ public class PlacedOrderPage extends Fragment implements PopupMenu.OnMenuItemCli
 
                     // 원래 order 취소
                     if (!orderManager.cancelOrder("sell_10000_1", data)) {
-                        Toast.makeText(mainActivity.getApplicationContext(), "Order 취소 실패", Toast.LENGTH_LONG).show();
+                        mainActivity.runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                Toast.makeText(mainActivity.getApplicationContext(), "Order 취소 실패", Toast.LENGTH_LONG).show();
+                            }
+                        });
                         return;
                     }
 
@@ -679,7 +709,12 @@ public class PlacedOrderPage extends Fragment implements PopupMenu.OnMenuItemCli
 
                     // 원래 order 취소
                     if (!orderManager.cancelOrder("sell_50000_1", data)) {
-                        Toast.makeText(mainActivity.getApplicationContext(), "Order 취소 실패", Toast.LENGTH_LONG).show();
+                        mainActivity.runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                Toast.makeText(mainActivity.getApplicationContext(), "Order 취소 실패", Toast.LENGTH_LONG).show();
+                            }
+                        });
                         return;
                     }
 
@@ -745,7 +780,12 @@ public class PlacedOrderPage extends Fragment implements PopupMenu.OnMenuItemCli
 
             // 원래 order 취소
             if (!orderManager.cancelOrder("OrderListPage_Down_1", data)) {
-                Toast.makeText(mainActivity.getApplicationContext(), "Order 취소 실패", Toast.LENGTH_LONG).show();
+                mainActivity.runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        Toast.makeText(mainActivity.getApplicationContext(), "Order 취소 실패", Toast.LENGTH_LONG).show();
+                    }
+                });
                 return;
             }
 
@@ -754,7 +794,12 @@ public class PlacedOrderPage extends Fragment implements PopupMenu.OnMenuItemCli
             if (targetData != null) {
                 // 이미 동일 가격의 order가 있다면 취소 하고 합쳐서 추가
                 if (!orderManager.cancelOrder("OrderListPage_Down_2", targetData)) {
-                    Toast.makeText(mainActivity.getApplicationContext(), "Lower Order 취소 실패", Toast.LENGTH_LONG).show();
+                    mainActivity.runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            Toast.makeText(mainActivity.getApplicationContext(), "Lower Order 취소 실패", Toast.LENGTH_LONG).show();
+                        }
+                    });
                     return;
                 }
 

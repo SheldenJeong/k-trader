@@ -8,6 +8,8 @@ import com.example.k_trader.api.models.BithumbApiModels;
 import com.example.k_trader.database.entities.BithumbApiEntities;
 import com.example.k_trader.database.daos.BithumbApiDao;
 import com.example.k_trader.database.OrderDatabase;
+import com.example.k_trader.domain.model.CoinSpecific;
+import com.example.k_trader.domain.model.CoinSpecificFactory;
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import java.util.Date;
@@ -190,11 +192,41 @@ public class OrderManager {
         JSONObject result;
         long requestTime = Calendar.getInstance().getTimeInMillis();
 
-        if (units < 0.0001) {
-            String logMessage = tag + " : " + type.toString() + " 발행 취소 : " + String.format("%.4f", units) + " : " + "최소 수량 미달";
+        // 코인별 특성 가져오기
+        CoinSpecific coinSpecific = CoinSpecificFactory.getCurrentCoinSpecific();
+        
+        // 상세한 수량 처리 로깅 추가
+        Log.d("KTrader", "[OrderManager] 수량 처리 상세:");
+        Log.d("KTrader", "[OrderManager] - 원본 수량: " + units);
+        Log.d("KTrader", "[OrderManager] - 수량 타입: double");
+        Log.d("KTrader", "[OrderManager] - 코인 타입: " + coinSpecific.getCoinType());
+        Log.d("KTrader", "[OrderManager] - 코인별 특성: " + coinSpecific.toString());
+        
+        // 코인별 최소 거래 수량 검증
+        double minimumTradingAmount = coinSpecific.getMinimumTradingAmount();
+        Log.d("KTrader", "[OrderManager] - 최소 거래 수량: " + minimumTradingAmount);
+        Log.d("KTrader", "[OrderManager] - 거래 가능 여부: " + coinSpecific.isTradableQuantity(units));
+        
+        // 수량이 코인별 최소 거래 수량보다 작은 경우
+        if (!coinSpecific.isTradableQuantity(units)) {
+            String logMessage = tag + " : " + type.toString() + " 발행 취소 : 수량이 " + coinSpecific.getCoinType() + " 최소 거래 단위보다 작습니다. 수량: " + String.format("%.4f", units) + ", 최소: " + minimumTradingAmount;
+            Log.e("KTrader", "[OrderManager] " + logMessage);
             LogInfoFormatter.logInfo(logMessage);
-            sendErrorCard("Validation Error", ERR_VALIDATION_001.getDescription());
-            Log.d("KTrader", "Order " + "Validation Error");
+            sendErrorCard("Validation Error", coinSpecific.getCoinType() + " 최소 거래 단위 미달", "/trade/place", "MIN_UNITS_NOT_MET", "최소 거래 단위 미달");
+            return null;
+        }
+        
+        // 거래 금액 검증 (최소 거래 단위)
+        int tradingAmount = (int)(units * price);
+        Log.d("KTrader", "[OrderManager] - 필요 거래 금액: " + tradingAmount);
+        Log.d("KTrader", "[OrderManager] - 최소 거래 단위: " + coinSpecific.getMinimumTradingUnit());
+        Log.d("KTrader", "[OrderManager] - 거래 금액 충족 여부: " + coinSpecific.isTradableAmount(tradingAmount));
+        
+        if (!coinSpecific.isTradableAmount(tradingAmount)) {
+            String logMessage = tag + " : " + type.toString() + " 발행 취소 : 거래 금액이 최소 거래 단위보다 작습니다. 금액: " + tradingAmount + ", 최소: " + coinSpecific.getMinimumTradingUnit();
+            Log.e("KTrader", "[OrderManager] " + logMessage);
+            LogInfoFormatter.logInfo(logMessage);
+            sendErrorCard("Validation Error", "최소 거래 단위 미달", "/trade/place", "MIN_AMOUNT_NOT_MET", "최소 거래 단위 미달");
             return null;
         }
 
@@ -218,10 +250,14 @@ public class OrderManager {
             requestTime = Calendar.getInstance().getTimeInMillis();
         }
 
+        // 수량 포맷팅 (모든 코인에 대해 소수점 4자리 사용)
+        String unitsStr = String.format("%.4f", units);
+        Log.d("KTrader", "[OrderManager] - 포맷팅 후 수량: " + unitsStr);
+        
         HashMap<String, String> rgParams = new HashMap<>();
         rgParams.put("order_currency", getCurrentCoinType());
         rgParams.put("Payment_currency", "KRW");
-        rgParams.put("units", String.format("%.4f", units));
+        rgParams.put("units", unitsStr);
         rgParams.put("price", String.valueOf(price));
         rgParams.put("payment_currency", "KRW");
 
@@ -255,9 +291,6 @@ public class OrderManager {
         }
 
         LogInfoFormatter.logInfo(tag + " : " + type.toString() + " 발행 시도 : " + String.format("%.4f", units) + " : " + String.format(Locale.getDefault(), "%,d", price));
-        LogInfoFormatter.logInfo(tag + " : API Key 설정 상태: " + (GlobalSettings.getInstance().getApiKey().isEmpty() ? "비어있음" : "설정됨"));
-        LogInfoFormatter.logInfo(tag + " : API Secret 설정 상태: " + (GlobalSettings.getInstance().getApiSecret().isEmpty() ? "비어있음" : "설정됨"));
-        LogInfoFormatter.logInfo(tag + " : 코인 타입: " + getCurrentCoinType());
 
         try {
             result = api.callApi("POST", "/trade/place", rgParams);
@@ -328,9 +361,13 @@ public class OrderManager {
             requestTime = Calendar.getInstance().getTimeInMillis();
         }
 
+        // 수량 포맷팅 (모든 코인에 대해 소수점 4자리 사용)
+        String unitsStr = String.format("%.4f", units);
+        Log.d("KTrader", "[OrderManager] - 포맷팅 후 수량: " + unitsStr);
+        
         HashMap<String, String> rgParams = new HashMap<>();
         rgParams.put("order_currency", getCurrentCoinType());
-        rgParams.put("units", String.format("%.4f", units));
+        rgParams.put("units", unitsStr);
         rgParams.put("payment_currency", "KRW");
 
         // 매수 주문인 경우 잔고 확인 (PlacedOrderPage에서 이미 확인했지만 추가 안전장치)
@@ -402,7 +439,30 @@ public class OrderManager {
             }
         }
 
-        LogInfoFormatter.logInfo(tag + " : " + type.toString() + " 시장가 발행 : " + String.format("%.4f", units) + " : ");
+        // 코인별 특성 가져오기 (시장가 주문)
+        CoinSpecific coinSpecific = CoinSpecificFactory.getCurrentCoinSpecific();
+        
+        // 상세한 수량 처리 로깅 추가 (시장가 주문)
+        Log.d("KTrader", "[OrderManager] 시장가 주문 수량 처리 상세:");
+        Log.d("KTrader", "[OrderManager] - 원본 수량: " + units);
+        Log.d("KTrader", "[OrderManager] - 수량 타입: float");
+        Log.d("KTrader", "[OrderManager] - 코인 타입: " + coinSpecific.getCoinType());
+        Log.d("KTrader", "[OrderManager] - 코인별 특성: " + coinSpecific.toString());
+        
+        // 코인별 최소 거래 수량 검증 (시장가 주문)
+        double minimumTradingAmount = coinSpecific.getMinimumTradingAmount();
+        Log.d("KTrader", "[OrderManager] - 최소 거래 수량: " + minimumTradingAmount);
+        Log.d("KTrader", "[OrderManager] - 거래 가능 여부: " + coinSpecific.isTradableQuantity(units));
+        
+        // 수량이 코인별 최소 거래 수량보다 작은 경우
+        if (!coinSpecific.isTradableQuantity(units)) {
+            String logMessage = tag + " : " + type.toString() + " 시장가 발행 취소 : 수량이 " + coinSpecific.getCoinType() + " 최소 거래 단위보다 작습니다. 수량: " + String.format("%.4f", units) + ", 최소: " + minimumTradingAmount;
+            Log.e("KTrader", "[OrderManager] " + logMessage);
+            LogInfoFormatter.logInfo(logMessage);
+            String endpoint = type == BUY ? "/trade/market_buy" : "/trade/market_sell";
+            sendErrorCard("Validation Error", coinSpecific.getCoinType() + " 최소 거래 단위 미달", endpoint, "MIN_UNITS_NOT_MET", "최소 거래 단위 미달");
+            return null;
+        }
 
         String endpoint = type == BUY ? "/trade/market_buy" : "/trade/market_sell";
         
@@ -741,7 +801,6 @@ public class OrderManager {
                 try {
                     long id = tickerDao.insertTicker(entity);
                     Log.d("KTrader", "[OrderManager] Ticker saved to DB: " + coin_pair + ", ID: " + id);
-                    LogInfoFormatter.logInfo(tag + " : Ticker 데이터를 DB에 저장 완료");
                 } catch (Exception e) {
                     Log.e("KTrader", "[OrderManager] Error saving ticker to DB: " + coin_pair, e);
                 }
@@ -834,8 +893,6 @@ public class OrderManager {
                         Log.e("KTrader", "[OrderManager] Error saving ETH balance to DB", e);
                     }
                 }
-                
-                LogInfoFormatter.logInfo(tag + " : Balance 데이터를 DB에 저장 완료");
             } else {
                 Log.w("KTrader", "[OrderManager] Balance API 응답의 data 필드가 JSONObject가 아님: " + dataObj.getClass().getSimpleName());
                 LogInfoFormatter.logInfo(tag + " : Balance API 응답 구조가 예상과 다름: " + dataObj.getClass().getSimpleName());

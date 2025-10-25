@@ -1,6 +1,8 @@
 package com.example.k_trader.service;
 
 import com.example.k_trader.notification.TradeNotificationManager;
+import com.example.k_trader.domain.model.CoinSpecific;
+import com.example.k_trader.domain.model.CoinSpecificFactory;
 import android.app.Service;
 import android.os.Handler;
 import android.os.Looper;
@@ -45,7 +47,7 @@ public class TradeJobService extends Service {
     private static final int PRICE_SAVING_QUEUE_COUNT = 60;  // 1시간 분량의 시장가를 저장해 두고 분석에 사용한다.
     private static final int SELL_SLOT_LOOK_ASIDE_MAX = 3; // 3 단계 위까지 매도점을 찾아본다.
     private static final int BUY_SLOT_LOOK_ASIDE_MAX = 3;
-    private static final double TRADING_VALUE_MIN = 0.0001;
+    // 코인별 최소 거래 수량은 CoinSpecific 인터페이스에서 관리
     
     // 싱글톤 인스턴스
     private static TradeJobService INSTANCE;
@@ -57,6 +59,8 @@ public class TradeJobService extends Service {
     
     // Notification 관리자
     private TradeNotificationManager notificationManager;
+    
+    // Transaction 정보 저장소
 
     public static int currentPrice;                  // 현재 코인 시장가
     public static long lastNotiTimeInMillis;        // 마지막 Notification 완료 시점
@@ -229,6 +233,13 @@ public class TradeJobService extends Service {
     private void tradeBusinessLogic() throws Exception {
         Log.d("KTrader", "[TradeJobService] tradeBusinessLogic() 시작");
         
+        // 코인별 특성 가져오기
+        CoinSpecific coinSpecific = CoinSpecificFactory.getCurrentCoinSpecific();
+        
+        // placedOrderManager 초기화 - 매번 새로운 계산을 위해 기존 주문들 제거
+        placedOrderManager.clear();
+        Log.d("KTrader", "[TradeJobService] placedOrderManager 초기화 완료");
+        
         // Read settings again if MainActivity has been terminated by Android
         if (GlobalSettings.getInstance().getApiKey() == null) {
             SharedPreferences sharedPreferences = ctx.getSharedPreferences("settings", MODE_PRIVATE);
@@ -350,8 +361,9 @@ public class TradeJobService extends Service {
 
         // 현재 걸려 있는 매도 리스트를 가져온다.
         {
+            Log.d("KTrader", "[TradeJobService] API에서 현재 주문 목록 조회 시작");
             JSONArray dataArray = orderManager.getPlacedOrderList("");
-            Log.d("KTrader", "placed order item count : " +  dataArray.size());
+            Log.d("KTrader", "[TradeJobService] placed order item count : " +  dataArray.size());
 
             for (int i = 0; i < dataArray.size(); i++) {
                 JSONObject item = (JSONObject) dataArray.get(i);
@@ -371,18 +383,33 @@ public class TradeJobService extends Service {
                             .setPlacedTime(Long.parseLong(orderDateStr) / 1000));
                 }
             }
+            Log.d("KTrader", "[TradeJobService] API 주문 목록을 placedOrderManager에 추가 완료");
         }
 
         // 현재 매도 걸려 있는 order들이 전부 매도 완료되었을 때 예상 잔고
-        LogInfoFormatter.logInfo(LogInfoFormatter.formatEstimatedBalance(
-                (long)(krwBalance + placedOrderManager.getEstimation()) + (int)(availableCoinBalance * currentPrice),
-                (long)(krwBalance)));
-        //log_info("예상잔고 : " + String.format(Locale.getDefault(), "%,d"
-        //        , (long)(krwBalance + placedOrderManager.getEstimation()) + (int)(availableCoinBalance * currentPrice))
-        //        );
-        LogInfoFormatter.logInfo(LogInfoFormatter.formatSellCompleteBalance(
-                (long)(placedOrderManager.getEstimation()),
-                (int)(availableCoinBalance * currentPrice)));
+        // 코인별 특성을 고려한 예상 잔고 계산
+        long placedOrderEstimation = placedOrderManager.getEstimation();
+        long estimatedBalance = (long)(krwBalance + placedOrderEstimation) + (int)(availableCoinBalance * currentPrice);
+        
+        Log.d("KTrader", "[TradeJobService] 예상잔고 계산 상세:");
+        Log.d("KTrader", "[TradeJobService] - KRW 잔고: " + krwBalance);
+        Log.d("KTrader", "[TradeJobService] - 매도 주문 예상 금액: " + placedOrderEstimation);
+        Log.d("KTrader", "[TradeJobService] - 코인 잔고 * 현재가: " + (availableCoinBalance * currentPrice));
+        Log.d("KTrader", "[TradeJobService] - 최종 예상잔고: " + estimatedBalance);
+        
+        LogInfoFormatter.logInfo(LogInfoFormatter.formatEstimatedBalance(estimatedBalance, (long)(krwBalance), coinSpecific.getCoinType()));
+        
+        // 매도 완료 시 잔고 계산 (코인별 특성 고려)
+        long sellCompleteBalance = (long)(placedOrderEstimation);
+        
+        // 주문 잔고: 매수 대기 중인 주문의 금액 (미체결 주문 예상 금액)
+        int orderBalance = (int)placedOrderEstimation;
+        
+        Log.d("KTrader", "[TradeJobService] 매도완료시 계산 상세:");
+        Log.d("KTrader", "[TradeJobService] - 매도 주문 예상 금액: " + sellCompleteBalance);
+        Log.d("KTrader", "[TradeJobService] - 주문잔고 (매수 대기 중인 주문 금액): " + orderBalance);
+        
+        LogInfoFormatter.logInfo(LogInfoFormatter.formatSellCompleteBalance(sellCompleteBalance, orderBalance, coinSpecific.getCoinType()));
 
         // 매수/매도 완료 이력을 가져온다.
         {
@@ -495,9 +522,10 @@ public class TradeJobService extends Service {
                     // 매수되었던 unit이 소수점 4자리 이하 일수도 있으니 다시 4자리로 절사 한다.
                     float unit = (float)((int)(pData.getUnits() * 10000) / 10000.0);
 
-                    // 0.00005~9 만큼 남는다면 반올림한다.
-                    if ((pData.getUnits() - unit) > 0.00005) {
-                        if ((availableCoinBalance - unit) > 0.0001) {
+                    // 코인별 최소 거래 수량을 고려한 반올림 처리
+                    double minTradingAmount = coinSpecific.getMinimumTradingAmount();
+                    if ((pData.getUnits() - unit) > (minTradingAmount / 2)) {
+                        if ((availableCoinBalance - unit) > minTradingAmount) {
                             unit = (float)(Math.round(pData.getUnits() * 10000d) / 10000d);
                             LogInfoFormatter.logInfo(LogInfoFormatter.formatSellCorrection(pData.getUnits(), unit));
                         }
@@ -508,9 +536,26 @@ public class TradeJobService extends Service {
                     // 런타임에 availableCoinBalance 값이 변경되므로 조건문은 정상적으로 동작함
                     Log.d("KTrader", "[TradeJobService] unit : " + unit + " availableCoinBalance: " + availableCoinBalance);
 
+                    // 코인별 특성 가져오기
+                    // coinSpecific은 이미 메서드 시작 부분에서 정의됨
+                    
+                    // 코인 잔고가 코인별 최소 거래 수량보다 작은 경우 매도 주문 건너뜀
+                    if (availableCoinBalance <= coinSpecific.getMinimumTradingAmount()) {
+                        LogInfoFormatter.logInfo("매도 주문 건너뜀 - 코인 잔고 부족: " + availableCoinBalance + " (최소: " + coinSpecific.getMinimumTradingAmount() + ")");
+                        Log.d("KTrader", "[TradeJobService] 매도 주문 건너뜀 - 코인 잔고 부족: " + availableCoinBalance + " (최소: " + coinSpecific.getMinimumTradingAmount() + ")");
+                        continue; // 다음 매수 건으로 이동
+                    }
+
                     if (unit > availableCoinBalance) {
                         LogInfoFormatter.logInfo(LogInfoFormatter.formatSellCorrection2(unit, availableCoinBalance));
                         unit = (float)((int)(availableCoinBalance * 10000) / 10000.0);
+                        
+                        // 수량이 코인별 최소 거래 수량보다 작아진 경우 매도 주문 건너뜀
+                        if (!coinSpecific.isTradableQuantity(unit)) {
+                            LogInfoFormatter.logInfo("매도 주문 건너뜀 - 조정된 수량이 " + coinSpecific.getCoinType() + " 최소 단위보다 작음: " + unit + " (최소: " + coinSpecific.getMinimumTradingAmount() + ")");
+                            Log.d("KTrader", "[TradeJobService] 매도 주문 건너뜀 - 조정된 수량이 " + coinSpecific.getCoinType() + " 최소 단위보다 작음: " + unit + " (최소: " + coinSpecific.getMinimumTradingAmount() + ")");
+                            continue; // 다음 매수 건으로 이동
+                        }
                     }
 
                     // 매수된 내용이 있다면 가능한 상위 slot에 매도하도록 한다.
@@ -528,6 +573,13 @@ public class TradeJobService extends Service {
                         boolean oDataCondition = oData == null || // Slot이 비어 있다면 해당 Slot에 매도 주문을 넣는다.
                                 (oData != null && isSameSlotOrder(oData, pData, targetPrice)); // 해당 Slot에 이미 Order가 있는 경우라도 분할 매수된 경우라면 동일 가격으로 매도 주문하도록 한다.
                         if (oDataCondition) {
+                            // 매도 주문 전 최종 수량 검증 (코인별 특성 적용)
+                            if (!coinSpecific.isTradableQuantity(unit)) {
+                                LogInfoFormatter.logInfo("매도 주문 건너뜀 - 최종 수량이 " + coinSpecific.getCoinType() + " 최소 단위보다 작음: " + unit + " (최소: " + coinSpecific.getMinimumTradingAmount() + ")");
+                                Log.d("KTrader", "[TradeJobService] 매도 주문 건너뜀 - 최종 수량이 " + coinSpecific.getCoinType() + " 최소 단위보다 작음: " + unit + " (최소: " + coinSpecific.getMinimumTradingAmount() + ")");
+                                continue; // 다음 슬롯으로 이동
+                            }
+                            
                             Log.d("KTrader", "[TradeJobService] 매도 주문 시도 - 가격: " + targetPrice + ", 수량: " + unit);
                             JSONObject sellResult = orderManager.addOrder("매수 발생 대응 매도", SELL, unit, targetPrice);
                             if (sellResult == null) {
@@ -603,12 +655,21 @@ public class TradeJobService extends Service {
 
         // 매수건에 대한 매도를 다 처리 했음에도 코인 잔고가 남아 있는 경우에 대한 예외처리, 가능한 slot을 찾아 매도 오더를 발행한다.
         // 예) 매수 발생 후 앱이 종료되었다가 앱이 재실행 된 경우
-        if (availableCoinBalance > TRADING_VALUE_MIN) {
+        if (availableCoinBalance > coinSpecific.getMinimumTradingAmount()) {
             LogInfoFormatter.logInfo(LogInfoFormatter.formatSellRequiredBalance(availableCoinBalance));
             // 현재가보다 상위에 비어 있는 slot 중 하나를 찾아보고 있다면 매도하도록 한다.
             int floorPrice = getFloorPrice(currentPrice);
             double unit = Math.min(getUnitAmount4Price(floorPrice), (availableCoinBalance * 10000) / 10000.0);
-            int sellIntervalPrice = MainPage.getSlotIntervalPrice(floorPrice) ;
+            
+            // 코인별 특성 가져오기 (예외 처리)
+            // coinSpecific은 이미 메서드 시작 부분에서 정의됨
+            
+            // 수량이 코인별 최소 거래 수량보다 작은 경우 매도 주문 건너뜀
+            if (!coinSpecific.isTradableQuantity(unit)) {
+                LogInfoFormatter.logInfo("예외 처리 매도 주문 건너뜀 - 수량이 " + coinSpecific.getCoinType() + " 최소 단위보다 작음: " + unit + " (최소: " + coinSpecific.getMinimumTradingAmount() + ")");
+                Log.d("KTrader", "[TradeJobService] 예외 처리 매도 주문 건너뜀 - 수량이 " + coinSpecific.getCoinType() + " 최소 단위보다 작음: " + unit + " (최소: " + coinSpecific.getMinimumTradingAmount() + ")");
+            } else {
+                int sellIntervalPrice = MainPage.getSlotIntervalPrice(floorPrice) ;
             for (int i = 0; i< SELL_SLOT_LOOK_ASIDE_MAX; i++) {
                 int targetPrice = floorPrice + MainPage.getProfitPrice(floorPrice) + (sellIntervalPrice * (SELL_SLOT_LOOK_ASIDE_MAX - 1 - i));
 
@@ -618,6 +679,13 @@ public class TradeJobService extends Service {
                 boolean oDataCondition = oData == null || // Slot이 비어 있다면 해당 Slot에 매도 주문을 넣는다.
                         (oData != null && isSameSlotOrder(oData, new TradeData().build().setUnits((float)unit), targetPrice)); // 해당 Slot에 이미 Order가 있는 경우라도 분할 매수된 경우라면 동일 가격으로 매도 주문하도록 한다.
                 if (oDataCondition) {
+                    // 예외 처리 매도 주문 전 최종 수량 검증 (코인별 특성 적용)
+                    if (!coinSpecific.isTradableQuantity(unit)) {
+                        LogInfoFormatter.logInfo("예외 처리 매도 주문 건너뜀 - 최종 수량이 " + coinSpecific.getCoinType() + " 최소 단위보다 작음: " + unit + " (최소: " + coinSpecific.getMinimumTradingAmount() + ")");
+                        Log.d("KTrader", "[TradeJobService] 예외 처리 매도 주문 건너뜀 - 최종 수량이 " + coinSpecific.getCoinType() + " 최소 단위보다 작음: " + unit + " (최소: " + coinSpecific.getMinimumTradingAmount() + ")");
+                        continue; // 다음 슬롯으로 이동
+                    }
+                    
                     JSONObject sellResult = orderManager.addOrder("이전 실행 매수 발생 대응 매도", SELL, unit, targetPrice);
                     if (sellResult == null) {
                         Log.e("KTrader", "[TradeJobService] 예외 처리 매도 주문 실패 - API 응답이 null");
@@ -656,6 +724,7 @@ public class TradeJobService extends Service {
                         break;
                     }
                 }
+            }
             }
         }
 
