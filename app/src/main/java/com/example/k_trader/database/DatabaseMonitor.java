@@ -59,6 +59,18 @@ public class DatabaseMonitor {
         
         disposables.add(disposable);
     }
+    
+    /**
+     * 활성 주문만 구독 (Transaction Log용)
+     */
+    public void subscribeToActiveOrders(DatabaseChangeListener listener) {
+        listeners.add(listener);
+        
+        Disposable disposable = orderRepository.observeActiveOrders()
+                .subscribe(orders -> notifyListeners(orders, listener));
+        
+        disposables.add(disposable);
+    }
 
 
 

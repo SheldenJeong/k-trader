@@ -87,8 +87,9 @@ public class TransactionLogPage extends Fragment implements DatabaseMonitor.Data
      */
     private void subscribeToDatabase() {
         if (databaseMonitor != null && getContext() != null) {
-            // 모든 주문 변경사항 구독
-            databaseMonitor.subscribeToAllOrders(this);
+            // 활성 주문만 구독 (Transaction Log용)
+            databaseMonitor.subscribeToActiveOrders(this);
+            Log.d("KTrader", "[TransactionLogPage] 활성 주문 DB 구독 시작");
         }
     }
 
@@ -109,15 +110,15 @@ public class TransactionLogPage extends Fragment implements DatabaseMonitor.Data
             getActivity().runOnUiThread(() -> {
                 try {
                     // UI에만 표시하고 브로드캐스트하지 않음
-                    appendLogToUI("=== 주문 목록 업데이트 ===");
+                    appendLogToUI("=== 활성 주문 목록 업데이트 ===");
                     
                     if (orders != null && !orders.isEmpty()) {
                         for (TradeData order : orders) {
                             appendLogToUI(order.toString());
                         }
-                        appendLogToUI("=== 총 " + orders.size() + "개 주문 ===");
+                        appendLogToUI("=== 활성 주문 총 " + orders.size() + "개 ===");
                     } else {
-                        appendLogToUI("=== 총 0개 주문 ===");
+                        appendLogToUI("=== 활성 주문 총 0개 ===");
                     }
                 } catch (Exception e) {
                     android.util.Log.e("KTrader", "[TransactionLogPage] Error updating orders", e);

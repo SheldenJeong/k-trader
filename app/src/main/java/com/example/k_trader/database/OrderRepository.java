@@ -51,6 +51,16 @@ public class OrderRepository {
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread());
     }
+    
+    /**
+     * 활성 주문만 실시간으로 관찰 (Transaction Log용)
+     */
+    public Flowable<List<TradeData>> observeActiveOrders() {
+        return orderDao.getActiveOrders()
+                .map(this::convertToTradeDataList)
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread());
+    }
 
     /**
      * 앱 시작 시 기존 주문 데이터를 한 번만 로드

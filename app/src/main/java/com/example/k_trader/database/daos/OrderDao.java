@@ -24,6 +24,12 @@ public interface OrderDao {
      */
     @Query("SELECT * FROM orders ORDER BY createdAt DESC")
     Flowable<List<OrderEntity>> getAllOrders();
+    
+    /**
+     * 활성 주문만 조회 (Flowable - 실시간 업데이트)
+     */
+    @Query("SELECT * FROM orders WHERE status = 'PLACED' ORDER BY createdAt DESC")
+    Flowable<List<OrderEntity>> getActiveOrders();
 
     /**
      * 여러 주문 삽입
