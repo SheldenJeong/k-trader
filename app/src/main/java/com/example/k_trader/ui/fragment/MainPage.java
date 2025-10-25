@@ -511,11 +511,11 @@ public class MainPage extends Fragment {
         public CharSequence getPageTitle(int position) {
             switch (position) {
                 case 0:
-                    return "Transaction Item";
+                    return getString(R.string.transaction_item);
                 case 1:
-                    return "Transaction Log";
+                    return getString(R.string.transaction_log);
                 default:
-                    return "Transaction Item";
+                    return getString(R.string.transaction_item);
             }
         }
     }
