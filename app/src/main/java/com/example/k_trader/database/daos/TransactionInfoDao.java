@@ -9,6 +9,7 @@ import com.example.k_trader.database.entities.TransactionInfoEntity;
 
 import io.reactivex.Flowable;
 import io.reactivex.Single;
+import io.reactivex.Maybe;
 import java.util.List;
 
 /**
@@ -34,6 +35,12 @@ public interface TransactionInfoDao {
      */
     @Query("SELECT * FROM transaction_info ORDER BY created_at DESC LIMIT 1")
     Single<TransactionInfoEntity> getLatestTransactionInfo();
+    
+    /**
+     * 최신 Transaction 정보 조회 (Maybe) - 데이터가 없으면 완료됨
+     */
+    @Query("SELECT * FROM transaction_info ORDER BY created_at DESC LIMIT 1")
+    Maybe<TransactionInfoEntity> getLatestTransactionInfoMaybe();
     
     /**
      * 모든 Transaction 정보 조회 (실시간 관찰)

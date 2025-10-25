@@ -64,23 +64,13 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         
-        // DIContainer 초기화 (비동기로 처리됨)
+        // DIContainer 초기화 (동기적으로 처리하여 Fragment 로드 전에 완료)
         try {
             diContainer = DIContainer.getInstance(this);
+            android.util.Log.d("KTrader", "[MainActivity] DIContainer 인스턴스 생성 완료");
         } catch (Exception e) {
             android.util.Log.e("KTrader", "[MainActivity] DIContainer 초기화 실패", e);
             // DIContainer 초기화 실패 시에도 앱이 계속 실행되도록 처리
-        }
-        
-        // ViewModel 초기화 (DIContainer가 준비된 후에)
-        try {
-            if (diContainer != null) {
-                mainViewModel = diContainer.createMainViewModel();
-                // ViewModel 관찰 설정
-                setupViewModelObservers();
-            }
-        } catch (Exception e) {
-            android.util.Log.e("KTrader", "[MainActivity] ViewModel 초기화 실패", e);
         }
         
         // Toolbar 설정
@@ -133,6 +123,20 @@ public class MainActivity extends AppCompatActivity {
         IntentFilter theFilter = new IntentFilter();
         theFilter.addAction(BROADCAST_PROGRESS_MESSAGE);
         LocalBroadcastManager.getInstance(getApplicationContext()).registerReceiver(new MyReceiver(), theFilter);
+
+        // ViewModel 초기화 (DIContainer가 준비된 후에)
+        try {
+            if (diContainer != null && diContainer.isInitialized()) {
+                mainViewModel = diContainer.createMainViewModel();
+                // ViewModel 관찰 설정
+                setupViewModelObservers();
+                android.util.Log.d("KTrader", "[MainActivity] ViewModel 초기화 완료");
+            } else {
+                android.util.Log.w("KTrader", "[MainActivity] DIContainer가 초기화되지 않아 ViewModel 생성을 건너뜁니다");
+            }
+        } catch (Exception e) {
+            android.util.Log.e("KTrader", "[MainActivity] ViewModel 초기화 실패", e);
+        }
 
         // Load app settings (data/data/(package_name)/shared_prefs/SharedPreference)
         SharedPreferences sharedPreferences = getSharedPreferences("settings", MODE_PRIVATE);

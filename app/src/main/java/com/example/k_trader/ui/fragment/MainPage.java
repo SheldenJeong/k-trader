@@ -216,7 +216,7 @@ public class MainPage extends Fragment {
         
         // 활성 주문 수는 별도로 복원 (TransactionInfoEntity에서)
         if (transactionInfoRepository != null) {
-            transactionInfoRepository.getLatestTransactionInfo()
+            transactionInfoRepository.getLatestTransactionInfoMaybe()
                 .subscribeOn(io.reactivex.schedulers.Schedulers.io())
                 .observeOn(io.reactivex.android.schedulers.AndroidSchedulers.mainThread())
                 .subscribe(
@@ -226,7 +226,8 @@ public class MainPage extends Fragment {
                             Log.d("KTrader", "[MainPage] TransactionInfo 복원: " + transactionInfo.getEstimatedBalance());
                         }
                     },
-                    error -> Log.e("KTrader", "[MainPage] TransactionInfo 조회 실패", error)
+                    error -> Log.e("KTrader", "[MainPage] TransactionInfo 조회 실패", error),
+                    () -> Log.d("KTrader", "[MainPage] TransactionInfo 테이블에 데이터가 없음 - 정상적인 상황") // onComplete handler
                 );
         }
     }

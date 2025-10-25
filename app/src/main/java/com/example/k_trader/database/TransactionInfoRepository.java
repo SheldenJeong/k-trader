@@ -8,6 +8,7 @@ import com.example.k_trader.database.entities.TransactionInfoEntity;
 import io.reactivex.Completable;
 import io.reactivex.Flowable;
 import io.reactivex.Single;
+import io.reactivex.Maybe;
 import io.reactivex.android.schedulers.AndroidSchedulers;
 import io.reactivex.schedulers.Schedulers;
 import java.util.List;
@@ -51,6 +52,15 @@ public class TransactionInfoRepository {
      */
     public Single<TransactionInfoEntity> getLatestTransactionInfo() {
         return transactionInfoDao.getLatestTransactionInfo()
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread());
+    }
+    
+    /**
+     * 최신 Transaction 정보 조회 (Maybe) - 데이터가 없으면 완료됨
+     */
+    public Maybe<TransactionInfoEntity> getLatestTransactionInfoMaybe() {
+        return transactionInfoDao.getLatestTransactionInfoMaybe()
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread());
     }

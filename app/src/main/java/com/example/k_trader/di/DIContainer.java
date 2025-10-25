@@ -51,8 +51,8 @@ public class DIContainer {
 
     private DIContainer(Context context) {
         this.context = context.getApplicationContext();
-        // 초기화를 백그라운드 스레드로 이동
-        initializeDependenciesAsync();
+        // 동기적으로 초기화하여 Fragment 로드 전에 완료
+        initializeDependencies();
     }
 
     public static synchronized DIContainer getInstance(Context context) {

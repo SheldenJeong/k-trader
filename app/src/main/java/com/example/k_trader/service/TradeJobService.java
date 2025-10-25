@@ -687,14 +687,15 @@ public class TradeJobService extends Service {
 
                 LogInfoFormatter.logInfo(LogInfoFormatter.formatNextLowBuyPrice(targetPrice));
 
-                // 매수 주문 전 잔고 확인
+                // 매수 주문 전 잔고 확인 (부동소수점 오차 고려)
                 double requiredAmount = getUnitAmount4Price(targetPrice) * targetPrice;
                 Log.d("KTrader", "[TradeJobService] 매수 주문 필요 금액: " + requiredAmount + ", 보유 금액: " + krwBalance);
                 
-                if (krwBalance < requiredAmount) {
+                // 부동소수점 오차를 고려한 잔고 확인 (0.01원 여유분 추가)
+                if (krwBalance < (requiredAmount + 0.01)) {
                     LogInfoFormatter.logInfo("잔고 부족으로 매수 주문을 건너뜁니다. 필요: " +
-                        String.format(Locale.getDefault(), "%,.0f", requiredAmount) + 
-                        "원, 보유: " + String.format(Locale.getDefault(), "%,.0f", krwBalance) + "원");
+                        String.format(Locale.getDefault(), "%,.2f", requiredAmount) + 
+                        "원, 보유: " + String.format(Locale.getDefault(), "%,.2f", krwBalance) + "원");
                     Log.d("KTrader", "[TradeJobService] 잔고 부족으로 매수 주문 건너뜀");
                     continue; // 다음 슬롯으로 이동
                 }
@@ -719,11 +720,19 @@ public class TradeJobService extends Service {
                     }
                 }
 
-                // add buy request for targt price
-                if (orderManager.addOrder("저점", BUY, getUnitAmount4Price(targetPrice), targetPrice) == null) {
+                // add buy request for target price
+                double unitAmount = getUnitAmount4Price(targetPrice);
+                Log.d("KTrader", "[TradeJobService] 매수 주문 발행 시도 - 가격: " + targetPrice + ", 수량: " + unitAmount + ", 필요 금액: " + (unitAmount * targetPrice));
+                
+                JSONObject buyResult = orderManager.addOrder("저점", BUY, unitAmount, targetPrice);
+                if (buyResult == null) {
+                    Log.e("KTrader", "[TradeJobService] 매수 주문 발행 실패 - API 응답이 null");
+                    return;
+                } else if (!"0000".equals(buyResult.get("status"))) {
+                    Log.e("KTrader", "[TradeJobService] 매수 주문 발행 실패 - 상태: " + buyResult.get("status") + ", 메시지: " + buyResult.get("message"));
                     return;
                 } else {
-                    Log.d("KTrader", "[TradeJobService] 매수 주문 성공");
+                    Log.d("KTrader", "[TradeJobService] 매수 주문 발행 성공: " + buyResult.toString());
                 }
                 break;
             }
@@ -737,7 +746,9 @@ public class TradeJobService extends Service {
 
     // 주어진 가격 slot에 매수 가능한 코인 개수를 구한다. 소수점 아래 4자리로 절사
     private double getUnitAmount4Price(int price) {
-        return (((double)GlobalSettings.getInstance().getUnitPrice() / price) * 10000) / 10000.0;
+        double unitAmount = (double)GlobalSettings.getInstance().getUnitPrice() / price;
+        // 소수점 4자리로 반올림하여 부동소수점 오차 방지
+        return Math.round(unitAmount * 10000.0) / 10000.0;
     }
     
     /**
