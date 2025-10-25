@@ -79,6 +79,18 @@ public class OrderManager {
     }
 
     public boolean cancelOrder(String tag, TradeData data) {
+        // 입력 데이터 유효성 검사 추가
+        if (data == null) {
+            Log.e("KTrader", "[OrderManager] cancelOrder - TradeData가 null입니다");
+            return false;
+        }
+
+        if (data.getId() == null || data.getId().isEmpty()) {
+            Log.e("KTrader", "[OrderManager] cancelOrder - Order ID가 null이거나 비어있습니다");
+            LogInfoFormatter.logInfo(tag + " : Order ID가 null이거나 비어있어서 취소할 수 없습니다");
+            return false;
+        }
+
         Api_Client api = tradeApiService.getApiService();
         JSONObject result;
 
@@ -92,32 +104,45 @@ public class OrderManager {
         rgParams.put("order_id", data.getId());
         rgParams.put("payment_currency", "KRW");
 
+        // 상세한 로깅 추가
+        Log.d("KTrader", "[OrderManager] cancelOrder 요청 파라미터: " + rgParams.toString());
         LogInfoFormatter.logInfo(tag + " : " + data.getType().toString() + " 취소 : " + data.getId() + " : " + data.getUnits() + " : " + String.format(Locale.getDefault(), "%,d", data.getPrice()));
 
         try {
             result = api.callApi("POST", "/trade/cancel", rgParams);
 
             if (result == null) {
+                Log.e("KTrader", "[OrderManager] cancelOrder API 응답이 null");
                 LogInfoFormatter.logInfo(tag + " : " + "/trade/cancel : null");
                 return false;
             }
 
+            // 상세한 로깅 추가
+            Log.d("KTrader", "[OrderManager] cancelOrder API 응답: " + result.toString());
+
             if (result.get("status") instanceof Long) {
                 String logMessage = tag + " : " + "/trade/cancel : " + result.toString();
+                Log.e("KTrader", "[OrderManager] " + logMessage);
                 LogInfoFormatter.logInfo(logMessage);
                 sendErrorCard("API Error", ERR_API_001.getDescription());
                 return false;
             }
 
-            if (!((String) result.get("status")).equals("0000")) {
+            String status = (String) result.get("status");
+            if (!status.equals("0000")) {
                 String logMessage = tag + " : " + "/trade/cancel : " + result.toString();
+                Log.e("KTrader", "[OrderManager] " + logMessage);
                 LogInfoFormatter.logInfo(logMessage);
+                LogInfoFormatter.logInfo(tag + " : API 오류 상세 - Status: " + status + ", Message: " + result.get("message"));
                 sendErrorCard("API Error", ERR_API_001.getDescription());
                 return false;
             }
+
+            Log.d("KTrader", "[OrderManager] 주문 취소 성공 - Order ID: " + data.getId());
         } catch (Exception e) {
             e.printStackTrace();
             String logMessage = tag + " : " + "/trade/cancel : " + e.getMessage();
+            Log.e("KTrader", "[OrderManager] " + logMessage);
             LogInfoFormatter.logInfo(logMessage);
             sendErrorCard("API Error", ERR_API_001.getDescription());
             return false;

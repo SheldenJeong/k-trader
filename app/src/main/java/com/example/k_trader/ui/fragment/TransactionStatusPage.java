@@ -10,6 +10,7 @@ import android.support.v4.app.Fragment;
 import android.support.v4.content.LocalBroadcastManager;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -57,16 +58,25 @@ public class TransactionStatusPage extends Fragment implements DatabaseMonitor.D
         // RecyclerView 초기화
         recyclerViewCards = view.findViewById(R.id.recyclerViewCards);
         recyclerViewCards.setLayoutManager(new LinearLayoutManager(getContext()));
-        cardAdapter = new CardAdapter();
+        
+        // 기존 어댑터가 있으면 재사용, 없으면 새로 생성
+        if (cardAdapter == null) {
+            cardAdapter = new CardAdapter();
+        }
         recyclerViewCards.setAdapter(cardAdapter);
         
         // Database Monitor 초기화
         databaseMonitor = DatabaseMonitor.getInstance(getContext());
         subscriberId = "TransactionItemFragment_" + System.currentTimeMillis();
         
-        // TransactionDataManager 초기화 및 데이터 로드
+        // TransactionDataManager 초기화 및 데이터 로드 (기존 데이터가 없을 때만)
         transactionDataManager = TransactionDataManager.getInstance(getContext());
-        transactionDataManager.loadTransactionData();
+        if (transactionDataManager.getCachedData() == null) {
+            Log.d("KTrader", "[TransactionStatusPage] 기존 데이터가 없어서 새로 로드");
+            transactionDataManager.loadTransactionData();
+        } else {
+            Log.d("KTrader", "[TransactionStatusPage] 기존 데이터가 있어서 로드 건너뜀");
+        }
         
         // ApiCallResultRepository 초기화
         apiCallResultRepository = ApiCallResultRepository.getInstance(
@@ -76,7 +86,9 @@ public class TransactionStatusPage extends Fragment implements DatabaseMonitor.D
         transactionInfoRepository = new com.example.k_trader.database.TransactionInfoRepository(getContext());
         
         // CompositeDisposable 초기화
-        disposables = new CompositeDisposable();
+        if (disposables == null) {
+            disposables = new CompositeDisposable();
+        }
         
         // BroadcastReceiver 등록
         if (getContext() != null) {

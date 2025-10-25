@@ -65,6 +65,13 @@ public class MainPage extends Fragment {
     private TransactionStatusPage transactionStatusPage;
     private TransactionLogPage transactionLogPage;
     
+    // UI 상태 캐시 (static으로 변경하여 Fragment 재생성 시에도 유지)
+    private static String cachedCoinType;
+    private static String cachedCurrentPrice;
+    private static String cachedPriceChange;
+    private static String cachedActiveOrders;
+    private static boolean isDataLoaded = false;
+    
     // BroadcastReceiver for card data updates
     private BroadcastReceiver cardDataReceiver;
     
@@ -101,6 +108,16 @@ public class MainPage extends Fragment {
             isTradingStarted = savedInstanceState.getBoolean(KEY_TRADING_STATE);
         }
 
+        // 실제 서비스 상태 확인하여 UI 동기화
+        boolean actualServiceRunning = TradeJobService.isServiceRunning();
+        if (actualServiceRunning && !isTradingStarted) {
+            Log.d("KTrader", "[MainPage] 서비스가 실행 중이지만 UI가 중지 상태 - UI 동기화");
+            isTradingStarted = true;
+        } else if (!actualServiceRunning && isTradingStarted) {
+            Log.d("KTrader", "[MainPage] 서비스가 중지되었지만 UI가 실행 상태 - UI 동기화");
+            isTradingStarted = false;
+        }
+
         // Floating Action Button 상태 초기화
         updateTradingToggleButton(isTradingStarted);
 
@@ -110,11 +127,19 @@ public class MainPage extends Fragment {
         // DatabaseOrderManager 초기화
         initializeDatabaseManager();
 
-        // 즉시 초기 데이터 로드 시작 (Fragment 생성 후 약간의 지연)
-        viewPager.postDelayed(this::loadInitialDataImmediately, 1000); // 1초 지연
+        // 캐시된 데이터가 있으면 먼저 복원
+        restoreCachedData();
         
-        // 코인 정보 초기화
-        updateCoinInfo();
+        // 코인 정보 초기화 (캐시된 데이터가 없을 때만)
+        if (cachedCoinType == null) {
+            updateCoinInfo();
+        }
+        
+        // 데이터가 로드되지 않았거나 서비스가 실행 중이면 새로 로드
+        if (!isDataLoaded || TradeJobService.isServiceRunning()) {
+            // 즉시 초기 데이터 로드 시작 (Fragment 생성 후 약간의 지연)
+            viewPager.postDelayed(this::loadInitialDataImmediately, 1000); // 1초 지연
+        }
         
         // BroadcastReceiver 초기화 및 등록
         setupCardDataReceiver();
@@ -139,6 +164,97 @@ public class MainPage extends Fragment {
     }
 
     /**
+     * 캐시된 데이터 복원 (Room DB에서)
+     */
+    private void restoreCachedData() {
+        Log.d("KTrader", "[MainPage] Room DB에서 캐시된 데이터 복원 시작");
+        
+        if (coinPriceInfoRepository == null) {
+            Log.w("KTrader", "[MainPage] coinPriceInfoRepository가 null입니다");
+            return;
+        }
+        
+        // Room DB에서 최신 코인 가격 정보 조회
+        coinPriceInfoRepository.getCurrentPriceInfo()
+            .subscribeOn(io.reactivex.schedulers.Schedulers.io())
+            .observeOn(io.reactivex.android.schedulers.AndroidSchedulers.mainThread())
+            .subscribe(
+                coinPriceInfo -> {
+                    if (coinPriceInfo != null) {
+                        Log.d("KTrader", "[MainPage] Room DB에서 코인 가격 정보 조회 성공: " + coinPriceInfo.toString());
+                        
+                        // 코인 타입 복원
+                        if (coinPriceInfo.getCoinType() != null && textCoinType != null) {
+                            textCoinType.setText(coinPriceInfo.getCoinType());
+                            cachedCoinType = coinPriceInfo.getCoinType();
+                            Log.d("KTrader", "[MainPage] 코인 타입 복원: " + coinPriceInfo.getCoinType());
+                        }
+                        
+                        // 현재 가격 복원
+                        if (coinPriceInfo.getCurrentPrice() != null && textCurrentPrice != null) {
+                            textCurrentPrice.setText(coinPriceInfo.getCurrentPrice());
+                            cachedCurrentPrice = coinPriceInfo.getCurrentPrice();
+                            Log.d("KTrader", "[MainPage] 현재 가격 복원: " + coinPriceInfo.getCurrentPrice());
+                        }
+                        
+                        // 가격 변동률 복원
+                        if (coinPriceInfo.getPriceChange() != null && textPriceChange != null) {
+                            textPriceChange.setText(coinPriceInfo.getPriceChange());
+                            cachedPriceChange = coinPriceInfo.getPriceChange();
+                            Log.d("KTrader", "[MainPage] 가격 변동률 복원: " + coinPriceInfo.getPriceChange());
+                        }
+                        
+                        Log.d("KTrader", "[MainPage] Room DB에서 캐시된 데이터 복원 완료");
+                    } else {
+                        Log.d("KTrader", "[MainPage] Room DB에 캐시된 데이터가 없음 - 새로 로드 필요");
+                    }
+                },
+                error -> {
+                    Log.e("KTrader", "[MainPage] Room DB에서 캐시된 데이터 조회 실패", error);
+                }
+            );
+        
+        // 활성 주문 수는 별도로 복원 (TransactionInfoEntity에서)
+        if (transactionInfoRepository != null) {
+            transactionInfoRepository.getLatestTransactionInfo()
+                .subscribeOn(io.reactivex.schedulers.Schedulers.io())
+                .observeOn(io.reactivex.android.schedulers.AndroidSchedulers.mainThread())
+                .subscribe(
+                    transactionInfo -> {
+                        if (transactionInfo != null && transactionInfo.getEstimatedBalance() != null) {
+                            // 활성 주문 수는 별도 로직으로 복원 (현재는 생략)
+                            Log.d("KTrader", "[MainPage] TransactionInfo 복원: " + transactionInfo.getEstimatedBalance());
+                        }
+                    },
+                    error -> Log.e("KTrader", "[MainPage] TransactionInfo 조회 실패", error)
+                );
+        }
+    }
+
+    /**
+     * 코인 가격 정보를 Room DB에 저장
+     */
+    private void saveCoinPriceToDB(String currentPrice, String priceChange) {
+        if (coinPriceInfoRepository == null) {
+            Log.w("KTrader", "[MainPage] coinPriceInfoRepository가 null입니다");
+            return;
+        }
+        
+        // SharedPreferences에서 코인 타입 읽기
+        android.content.SharedPreferences prefs = getContext().getSharedPreferences("settings", android.content.Context.MODE_PRIVATE);
+        String coinType = prefs.getString(com.example.k_trader.base.GlobalSettings.COIN_TYPE_KEY_NAME, com.example.k_trader.base.GlobalSettings.COIN_TYPE_DEFAULT_VALUE);
+        
+        // Room DB에 저장
+        coinPriceInfoRepository.savePriceInfo(coinType, currentPrice, priceChange)
+            .subscribeOn(io.reactivex.schedulers.Schedulers.io())
+            .observeOn(io.reactivex.android.schedulers.AndroidSchedulers.mainThread())
+            .subscribe(
+                () -> Log.d("KTrader", "[MainPage] 코인 가격 정보를 Room DB에 저장 완료"),
+                error -> Log.e("KTrader", "[MainPage] 코인 가격 정보 저장 실패", error)
+            );
+    }
+
+    /**
      * 즉시 초기 데이터 로드 (Fragment 준비와 관계없이)
      */
     private void loadInitialDataImmediately() {
@@ -152,7 +268,10 @@ public class MainPage extends Fragment {
         Completable immediateLoad = databaseOrderManager.initializeAndSyncData("MainPage 즉시 초기화")
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
-                .doOnComplete(() -> Log.d("[K-TR]", "[MainPage] 즉시 초기 데이터 로드 완료"))
+                .doOnComplete(() -> {
+                    Log.d("[K-TR]", "[MainPage] 즉시 초기 데이터 로드 완료");
+                    isDataLoaded = true; // 데이터 로드 완료 플래그 설정
+                })
                 .doOnError(error -> Log.e("[K-TR]", "[MainPage] 즉시 초기 데이터 로드 실패", error));
         
         disposables.add(immediateLoad.subscribe());
@@ -280,6 +399,15 @@ public class MainPage extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
+        
+        // 실제 서비스 상태 확인하여 UI 동기화
+        boolean actualServiceRunning = TradeJobService.isServiceRunning();
+        if (actualServiceRunning != isTradingStarted) {
+            Log.d("KTrader", "[MainPage] onResume - 서비스 상태와 UI 상태 불일치 감지");
+            isTradingStarted = actualServiceRunning;
+            updateTradingToggleButton(isTradingStarted);
+        }
+        
         // SettingsActivity에서 돌아올 때 코인 정보 업데이트
         Log.d("KTrader", "[MainPage] onResume - updating coin info");
         updateCoinInfo();
@@ -645,6 +773,11 @@ public class MainPage extends Fragment {
                             if (textCurrentPrice != null && finalCurrentPrice > 0) {
                                 String formattedPrice = String.format(java.util.Locale.getDefault(), "₩%,d", finalCurrentPrice);
                                 textCurrentPrice.setText(formattedPrice);
+                                cachedCurrentPrice = formattedPrice; // 캐시 저장
+                                
+                                // Room DB에 캐시 저장
+                                saveCoinPriceToDB(formattedPrice, finalHourlyChange);
+                                
                                 Log.d("KTrader", "[MainPage] Updated current price: " + formattedPrice);
                             } else if (finalCurrentPrice <= 0) {
                                 Log.d("KTrader", "[MainPage] Skipping price update - current price is 0 or invalid");
@@ -653,6 +786,7 @@ public class MainPage extends Fragment {
                             // 1시간 등락폭 업데이트 (CoinInfo용)
                             if (textPriceChange != null) {
                                 textPriceChange.setText(finalHourlyChange);
+                                cachedPriceChange = finalHourlyChange; // 캐시 저장
                                 
                                 // 등락폭에 따라 색상 변경
                                 if (finalHourlyChange.startsWith("+")) {
@@ -725,6 +859,18 @@ public class MainPage extends Fragment {
         
         // 코인 타입 표시
         textCoinType.setText(coinType);
+        cachedCoinType = coinType; // 캐시 저장
+        
+        // Room DB에 코인 타입 저장 (기존 데이터가 있으면 업데이트)
+        if (coinPriceInfoRepository != null) {
+            coinPriceInfoRepository.savePriceInfo(coinType, "", "")
+                .subscribeOn(io.reactivex.schedulers.Schedulers.io())
+                .observeOn(io.reactivex.android.schedulers.AndroidSchedulers.mainThread())
+                .subscribe(
+                    () -> Log.d("KTrader", "[MainPage] 코인 타입을 Room DB에 저장 완료"),
+                    error -> Log.e("KTrader", "[MainPage] 코인 타입 저장 실패", error)
+                );
+        }
         
         // 현재 가격과 활성 거래 수는 이전 값을 유지 (깜박임 방지)
         // API 호출로 실제 값이 업데이트될 때까지 기존 값 유지
@@ -916,6 +1062,7 @@ public class MainPage extends Fragment {
         
         String newText = "S" + newSell + " : B" + newBuy;
         textActiveOrders.setText(newText);
+        cachedActiveOrders = newText; // 캐시 저장
         Log.d("KTrader", "[MainPage] Updated active orders display: " + newText);
     }
     

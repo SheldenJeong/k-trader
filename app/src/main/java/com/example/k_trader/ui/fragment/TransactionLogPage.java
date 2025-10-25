@@ -8,6 +8,7 @@ import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.v4.app.Fragment;
 import android.support.v4.content.LocalBroadcastManager;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -48,6 +49,9 @@ public class TransactionLogPage extends Fragment implements DatabaseMonitor.Data
         // UI 컴포넌트 초기화
         editText = view.findViewById(R.id.editText);
         scrollView = view.findViewById(R.id.scrollView1);
+        
+        // 기존 로그 데이터 유지 (새로고침하지 않음)
+        Log.d("KTrader", "[TransactionLogPage] onCreateView - 기존 로그 데이터 유지");
         
         // Database Monitor 초기화
         databaseMonitor = DatabaseMonitor.getInstance(getContext());

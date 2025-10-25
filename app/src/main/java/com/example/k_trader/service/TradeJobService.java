@@ -47,6 +47,9 @@ public class TradeJobService extends Service {
     private static final int BUY_SLOT_LOOK_ASIDE_MAX = 3;
     private static final double TRADING_VALUE_MIN = 0.0001;
     
+    // 싱글톤 인스턴스
+    private static TradeJobService INSTANCE;
+    
     // 타이머 관련 변수
     private Handler handler;
     private Runnable tradingRunnable;
@@ -70,6 +73,7 @@ public class TradeJobService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
+        INSTANCE = this; // 싱글톤 인스턴스 설정
         notificationManager = new TradeNotificationManager(this);
         notificationManager.createForegroundNotificationChannel();
         notificationManager.createTradeNotificationChannel();
@@ -94,12 +98,27 @@ public class TradeJobService extends Service {
     public void onDestroy() {
         Log.d("KTrader", "[TradeJobService] onDestroy() 시작");
         stopTrading();
+        INSTANCE = null; // 싱글톤 인스턴스 해제
         super.onDestroy();
     }
 
     @Override
     public android.os.IBinder onBind(Intent intent) {
         return null; // Bound Service가 아니므로 null 반환
+    }
+
+    /**
+     * 서비스 실행 상태를 반환하는 메서드
+     */
+    public static boolean isServiceRunning() {
+        return INSTANCE != null && INSTANCE.isServiceRunning;
+    }
+
+    /**
+     * 서비스 인스턴스를 반환하는 메서드
+     */
+    public static TradeJobService getInstance() {
+        return INSTANCE;
     }
 
     /**
@@ -533,12 +552,19 @@ public class TradeJobService extends Service {
                                 Log.d("KTrader", "[TradeJobService] 매도 대기 등록 노티 발생: " + notificationText);
                                 notificationManager.sendTradeNotification(notificationTitle, notificationText);
 
-                                // 뒤쪽에서 매수 주문 낼 때 위에서 매도낸 금액이랑 똑같은 매수 다시 내지 않도록 리스트에 넣어둔다. (리스트 전체를 다시 갱신하려면 REST API를 한번 더 호출 해야 하니 경제적)
-                                placedOrderManager.add(placedOrderManager.build()
-                                        .setType(SELL)
-                                        .setStatus(PLACED)
-                                        .setUnits(unit)
-                                        .setPrice(targetPrice));
+                                // 실제 Order ID를 설정하여 placedOrderManager에 추가
+                                String orderId = (String) sellResult.get("order_id");
+                                if (orderId != null && !orderId.isEmpty()) {
+                                    placedOrderManager.add(placedOrderManager.build()
+                                            .setType(SELL)
+                                            .setStatus(PLACED)
+                                            .setId(orderId)  // 실제 Order ID 설정
+                                            .setUnits(unit)
+                                            .setPrice(targetPrice));
+                                    Log.d("KTrader", "[TradeJobService] 매도 주문을 placedOrderManager에 추가 - Order ID: " + orderId);
+                                } else {
+                                    Log.e("KTrader", "[TradeJobService] Order ID가 null이거나 비어있음: " + sellResult.toString());
+                                }
                                 break;
                             }
                         }
@@ -614,12 +640,19 @@ public class TradeJobService extends Service {
                         Log.d("KTrader", "[TradeJobService] 예외 처리 매도 대기 등록 노티 발생: " + notificationText);
                         notificationManager.sendTradeNotification(notificationTitle, notificationText);
 
-                        // 뒤쪽에서 매수 주문 낼 때 위에서 매도낸 금액이랑 똑같은 매수 다시 내지 않도록 리스트에 넣어둔다. (리스트 전체를 다시 갱신하려면 REST API를 한번 더 호출 해야 하니 경제적)
-                        placedOrderManager.add(placedOrderManager.build()
-                                .setType(SELL)
-                                .setStatus(PLACED)
-                                .setUnits((float)unit)
-                                .setPrice(targetPrice));
+                        // 실제 Order ID를 설정하여 placedOrderManager에 추가
+                        String orderId = (String) sellResult.get("order_id");
+                        if (orderId != null && !orderId.isEmpty()) {
+                            placedOrderManager.add(placedOrderManager.build()
+                                    .setType(SELL)
+                                    .setStatus(PLACED)
+                                    .setId(orderId)  // 실제 Order ID 설정
+                                    .setUnits((float)unit)
+                                    .setPrice(targetPrice));
+                            Log.d("KTrader", "[TradeJobService] 매도 주문을 placedOrderManager에 추가 - Order ID: " + orderId);
+                        } else {
+                            Log.e("KTrader", "[TradeJobService] Order ID가 null이거나 비어있음: " + sellResult.toString());
+                        }
                         break;
                     }
                 }
@@ -670,10 +703,18 @@ public class TradeJobService extends Service {
                 Log.d("KTrader", "[TradeJobService] 기존 매수 주문 취소 시작");
                 for (TradeData tmp : placedOrderManager.getList()) {
                     if (tmp.getType() == BUY) {  // 1000만원 단위 경계에서 buy price가 미세하게 차이나서 data가 null이 되어 들어올 수 있으므로 전체 buy를 취소한다.
-                        Log.d("KTrader", "[TradeJobService] 기존 매수 주문 취소 - 가격: " + tmp.getPrice() + ", 수량: " + tmp.getUnits());
+                        // Order ID 유효성 검사
+                        if (tmp.getId() == null || tmp.getId().isEmpty()) {
+                            Log.e("KTrader", "[TradeJobService] Order ID가 null이거나 비어있어서 취소 건너뜀: " + tmp.toString());
+                            continue;
+                        }
+                        
+                        Log.d("KTrader", "[TradeJobService] 기존 매수 주문 취소 - Order ID: " + tmp.getId() + ", 가격: " + tmp.getPrice() + ", 수량: " + tmp.getUnits());
                         if (!orderManager.cancelOrder("체결 안 될 오더", tmp)) {
-                            Log.e("KTrader", "[TradeJobService] 기존 매수 주문 취소 실패");
+                            Log.e("KTrader", "[TradeJobService] 기존 매수 주문 취소 실패 - Order ID: " + tmp.getId());
                             return;
+                        } else {
+                            Log.d("KTrader", "[TradeJobService] 기존 매수 주문 취소 성공 - Order ID: " + tmp.getId());
                         }
                     }
                 }
