@@ -20,6 +20,8 @@ import com.example.k_trader.R;
 import com.example.k_trader.base.TradeData;
 import com.example.k_trader.database.DatabaseMonitor;
 import com.example.k_trader.database.ApiCallResultRepository;
+import com.example.k_trader.database.OrderDatabase;
+import com.example.k_trader.database.TransactionInfoRepository;
 import com.example.k_trader.database.entities.ApiCallResultEntity;
 import com.example.k_trader.data.TransactionDataManager;
 import com.example.k_trader.database.entities.TransactionInfoEntity;
@@ -80,10 +82,10 @@ public class TransactionStatusPage extends Fragment implements DatabaseMonitor.D
         
         // ApiCallResultRepository 초기화
         apiCallResultRepository = ApiCallResultRepository.getInstance(
-            com.example.k_trader.database.OrderDatabase.getInstance(getContext()).apiCallResultDao());
+                OrderDatabase.getInstance(getContext()).apiCallResultDao());
         
         // TransactionInfoRepository 초기화
-        transactionInfoRepository = new com.example.k_trader.database.TransactionInfoRepository(getContext());
+        transactionInfoRepository = new TransactionInfoRepository(getContext());
         
         // CompositeDisposable 초기화
         if (disposables == null) {
@@ -186,7 +188,6 @@ public class TransactionStatusPage extends Fragment implements DatabaseMonitor.D
         // TransactionCard 생성
         CardAdapter.TransactionCard card = new CardAdapter.TransactionCard(
             transactionInfo.getTransactionTime(),
-            transactionInfo.getBtcCurrentPrice(),
             transactionInfo.getHourlyChange(),
             transactionInfo.getEstimatedBalance(),
             transactionInfo.getLastBuyPrice(),
@@ -344,7 +345,6 @@ public class TransactionStatusPage extends Fragment implements DatabaseMonitor.D
             if (intent.getAction() != null && intent.getAction().equals(BROADCAST_CARD_DATA)) {
                 // 카드 데이터 처리
                 String transactionTime = intent.getStringExtra("transactionTime");
-                String btcCurrentPrice = intent.getStringExtra("btcCurrentPrice");
                 String hourlyChange = intent.getStringExtra("hourlyChange");
                 String estimatedBalance = intent.getStringExtra("estimatedBalance");
                 String lastBuyPrice = intent.getStringExtra("lastBuyPrice");
@@ -352,7 +352,7 @@ public class TransactionStatusPage extends Fragment implements DatabaseMonitor.D
                 String nextBuyPrice = intent.getStringExtra("nextBuyPrice");
                 
                 CardAdapter.TransactionCard card = new CardAdapter.TransactionCard(
-                    transactionTime, btcCurrentPrice, hourlyChange, estimatedBalance,
+                    transactionTime, estimatedBalance, hourlyChange,
                     lastBuyPrice, lastSellPrice, nextBuyPrice
                 );
                 
@@ -379,7 +379,6 @@ public class TransactionStatusPage extends Fragment implements DatabaseMonitor.D
             } else if (intent.getAction() != null && intent.getAction().equals(BROADCAST_TRANSACTION_DATA)) {
                 // TransactionDataManager에서 전송된 데이터 처리
                 String transactionTime = intent.getStringExtra("transactionTime");
-                String btcCurrentPrice = intent.getStringExtra("btcCurrentPrice");
                 String hourlyChange = intent.getStringExtra("hourlyChange");
                 String dailyChange = intent.getStringExtra("dailyChange");
                 String estimatedBalance = intent.getStringExtra("estimatedBalance");
@@ -391,7 +390,7 @@ public class TransactionStatusPage extends Fragment implements DatabaseMonitor.D
                 android.util.Log.d("KTrader", "[TransactionItemFragment] Received transaction data - hourlyChange: " + hourlyChange + ", dailyChange: " + dailyChange);
                 
                 CardAdapter.TransactionCard card = new CardAdapter.TransactionCard(
-                    transactionTime, btcCurrentPrice, hourlyChange, estimatedBalance,
+                    transactionTime, estimatedBalance, hourlyChange,
                     lastBuyPrice, lastSellPrice, nextBuyPrice
                 );
                 
@@ -408,7 +407,7 @@ public class TransactionStatusPage extends Fragment implements DatabaseMonitor.D
     }
 
     /**
-     * CardAdapter 클래스 - TransactionItemFragment 내부에서 사용
+     * CardAdapter 클래스 - TransactionStatusPage 내부에서 사용
      * DB 기반 주문 데이터를 표시하도록 확장
      */
     public static class CardAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
@@ -420,19 +419,17 @@ public class TransactionStatusPage extends Fragment implements DatabaseMonitor.D
 
         public static class TransactionCard {
             public String transactionTime;
-            public String btcCurrentPrice;
-            public String hourlyChange;
             public String estimatedBalance;
+            public String hourlyChange;
             public String lastBuyPrice;
             public String lastSellPrice;
             public String nextBuyPrice;
 
-            public TransactionCard(String transactionTime, String btcCurrentPrice, String hourlyChange,
-                                String estimatedBalance, String lastBuyPrice, String lastSellPrice, String nextBuyPrice) {
+            public TransactionCard(String transactionTime, String estimatedBalance,
+                                String hourlyChange, String lastBuyPrice, String lastSellPrice, String nextBuyPrice) {
                 this.transactionTime = transactionTime;
-                this.btcCurrentPrice = btcCurrentPrice;
-                this.hourlyChange = hourlyChange;
                 this.estimatedBalance = estimatedBalance;
+                this.hourlyChange = hourlyChange;
                 this.lastBuyPrice = lastBuyPrice;
                 this.lastSellPrice = lastSellPrice;
                 this.nextBuyPrice = nextBuyPrice;
@@ -496,7 +493,6 @@ public class TransactionStatusPage extends Fragment implements DatabaseMonitor.D
 
         public static class CardViewHolder extends RecyclerView.ViewHolder {
             TextView textTransactionTime;
-            TextView textBtcCurrentPrice;
             TextView textHourlyChange;
             TextView textEstimatedBalance;
             TextView textLastBuyPrice;
@@ -508,7 +504,6 @@ public class TransactionStatusPage extends Fragment implements DatabaseMonitor.D
                 super(itemView);
                 this.adapter = adapter;
                 textTransactionTime = itemView.findViewById(R.id.textTransactionTime);
-                textBtcCurrentPrice = itemView.findViewById(R.id.textBtcCurrentPrice);
                 textHourlyChange = itemView.findViewById(R.id.textHourlyChange);
                 textEstimatedBalance = itemView.findViewById(R.id.textEstimatedBalance);
                 textLastBuyPrice = itemView.findViewById(R.id.textLastBuyPrice);
@@ -596,8 +591,7 @@ public class TransactionStatusPage extends Fragment implements DatabaseMonitor.D
                 TransactionCard card = (TransactionCard) cardList.get(position);
                 CardViewHolder cardHolder = (CardViewHolder) holder;
                 cardHolder.textTransactionTime.setText(card.transactionTime);
-                cardHolder.textBtcCurrentPrice.setText(card.btcCurrentPrice);
-                cardHolder.textHourlyChange.setText(card.hourlyChange);
+                cardHolder.textHourlyChange.setText(card.estimatedBalance);
                 cardHolder.textEstimatedBalance.setText(card.estimatedBalance);
                 cardHolder.textLastBuyPrice.setText(card.lastBuyPrice);
                 cardHolder.textLastSellPrice.setText(card.lastSellPrice);

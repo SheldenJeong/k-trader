@@ -4,16 +4,13 @@ import android.content.Intent;
 import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 
-import com.example.k_trader.api.models.BithumbApiModels;
 import com.example.k_trader.database.entities.BithumbApiEntities;
 import com.example.k_trader.database.daos.BithumbApiDao;
 import com.example.k_trader.database.OrderDatabase;
 import com.example.k_trader.domain.model.CoinSpecific;
 import com.example.k_trader.domain.model.CoinSpecificFactory;
 import com.google.gson.Gson;
-import com.google.gson.JsonSyntaxException;
 import java.util.Date;
-import java.util.Map;
 import com.example.k_trader.ui.activity.MainActivity;
 import com.example.k_trader.KTraderApplication;
 import com.example.k_trader.util.LogInfoFormatter;
@@ -116,7 +113,7 @@ public class OrderManager {
             if (result == null) {
                 Log.e("KTrader", "[OrderManager] cancelOrder API 응답이 null");
                 LogInfoFormatter.logInfo(tag + " : " + "/trade/cancel : null");
-                sendErrorCard("API Error", ERR_API_001.getDescription(), "/trade/cancel", "NULL_RESPONSE", "API 응답이 null입니다");
+                sendErrorCard("API 오류", ERR_API_001.getDescription(), "/trade/cancel", "NULL_RESPONSE", "API 응답이 null입니다");
                 return false;
             }
 
@@ -127,7 +124,7 @@ public class OrderManager {
                 String logMessage = tag + " : " + "/trade/cancel : " + result.toString();
                 Log.e("KTrader", "[OrderManager] " + logMessage);
                 LogInfoFormatter.logInfo(logMessage);
-                sendErrorCard("API Error", ERR_API_001.getDescription(), "/trade/cancel", "INVALID_STATUS_TYPE", result.toString());
+                sendErrorCard("API 오류", ERR_API_001.getDescription(), "/trade/cancel", "INVALID_STATUS_TYPE", result.toString());
                 return false;
             }
 
@@ -138,7 +135,7 @@ public class OrderManager {
                 LogInfoFormatter.logInfo(logMessage);
                 LogInfoFormatter.logInfo(tag + " : API 오류 상세 - Status: " + status + ", Message: " + result.get("message"));
                 String serverMessage = (String) result.get("message");
-                sendErrorCard("API Error", ERR_API_001.getDescription(), "/trade/cancel", status, serverMessage);
+                sendErrorCard("API 오류", ERR_API_001.getDescription(), "/trade/cancel", status, serverMessage);
                 return false;
             }
 
@@ -148,7 +145,7 @@ public class OrderManager {
             String logMessage = tag + " : " + "/trade/cancel : " + e.getMessage();
             Log.e("KTrader", "[OrderManager] " + logMessage);
             LogInfoFormatter.logInfo(logMessage);
-            sendErrorCard("API Error", ERR_API_001.getDescription(), "/trade/cancel", "EXCEPTION", e.getMessage());
+            sendErrorCard("API 오류", ERR_API_001.getDescription(), "/trade/cancel", "EXCEPTION", e.getMessage());
             return false;
         }
 
@@ -162,7 +159,7 @@ public class OrderManager {
 
         if (result == null) {
             String logMessage = "/info/orders : null";
-            sendErrorCard("API Error", ERR_API_002.getDescription());
+            sendErrorCard("API 오류", ERR_API_002.getDescription());
             return false;
         }
 
@@ -212,7 +209,7 @@ public class OrderManager {
             String logMessage = tag + " : " + type.toString() + " 발행 취소 : 수량이 " + coinSpecific.getCoinType() + " 최소 거래 단위보다 작습니다. 수량: " + String.format("%.4f", units) + ", 최소: " + minimumTradingAmount;
             Log.e("KTrader", "[OrderManager] " + logMessage);
             LogInfoFormatter.logInfo(logMessage);
-            sendErrorCard("Validation Error", coinSpecific.getCoinType() + " 최소 거래 단위 미달", "/trade/place", "MIN_UNITS_NOT_MET", "최소 거래 단위 미달");
+            sendErrorCard("유효성 검사 오류", coinSpecific.getCoinType() + " 최소 거래 단위 미달", "/trade/place", "MIN_UNITS_NOT_MET", "최소 거래 단위 미달");
             return null;
         }
         
@@ -226,7 +223,7 @@ public class OrderManager {
             String logMessage = tag + " : " + type.toString() + " 발행 취소 : 거래 금액이 최소 거래 단위보다 작습니다. 금액: " + tradingAmount + ", 최소: " + coinSpecific.getMinimumTradingUnit();
             Log.e("KTrader", "[OrderManager] " + logMessage);
             LogInfoFormatter.logInfo(logMessage);
-            sendErrorCard("Validation Error", "최소 거래 단위 미달", "/trade/place", "MIN_AMOUNT_NOT_MET", "최소 거래 단위 미달");
+            sendErrorCard("유효성 검사 오류", "최소 거래 단위 미달", "/trade/place", "MIN_AMOUNT_NOT_MET", "최소 거래 단위 미달");
             return null;
         }
 
@@ -530,12 +527,14 @@ public class OrderManager {
             if (result == null) {
                 LogInfoFormatter.logInfo(tag + " : " + "/info/balance : null");
                 saveApiStats("/info/balance", "POST", 0, System.currentTimeMillis() - startTime, false, "null response");
+                sendErrorCard("API Error", "Balance API 응답이 null입니다", "/info/balance", "NULL_RESPONSE", "API 응답이 null입니다");
                 throw new Exception("returns null");
             }
 
             if (result.get("status") instanceof Long) {
                 LogInfoFormatter.logInfo(tag + " : " + "/info/balance : " + result.toString());
                 saveApiStats("/info/balance", "POST", 0, System.currentTimeMillis() - startTime, false, "invalid status type");
+                sendErrorCard("API Error", "Balance API 상태 타입 오류", "/info/balance", "INVALID_STATUS_TYPE", result.toString());
                 throw new Exception("returns null");
             }
 
@@ -544,6 +543,8 @@ public class OrderManager {
             if (!status.equals("0000")) {
                 LogInfoFormatter.logInfo(tag + " : " + "/info/balance : " + result.toString());
                 saveApiStats("/info/balance", "POST", Integer.parseInt(status), System.currentTimeMillis() - startTime, false, (String) result.get("message"));
+                String serverMessage = (String) result.get("message");
+                sendErrorCard("API Error", "Balance API 오류", "/info/balance", status, serverMessage);
                 throw new Exception("returns null");
             }
             
@@ -555,6 +556,7 @@ public class OrderManager {
             e.printStackTrace();
             LogInfoFormatter.logInfo(tag + " : " + "/info/balance : " + e.getMessage());
             saveApiStats("/info/balance", "POST", 500, System.currentTimeMillis() - startTime, false, e.getMessage());
+            sendErrorCard("API Error", "Balance API 호출 중 예외 발생", "/info/balance", "EXCEPTION", e.getMessage());
             throw new Exception("returns null");
         }
 
@@ -570,22 +572,27 @@ public class OrderManager {
 
             if (result == null) {
                 LogInfoFormatter.logInfo(tag + " : " + "/public/orderbook/" + getCurrentCoinType() + " : null");
+                sendErrorCard("API Error", "Orderbook API 응답이 null입니다", "/public/orderbook/" + getCurrentCoinType(), "NULL_RESPONSE", "API 응답이 null입니다");
                 throw new Exception("returns null");
             }
 
             if (result.get("status") instanceof Long) {
                 LogInfoFormatter.logInfo(tag + " : " + "/public/orderbook/" + getCurrentCoinType() + " : " + result.toString());
+                sendErrorCard("API Error", "Orderbook API 상태 타입 오류", "/public/orderbook/" + getCurrentCoinType(), "INVALID_STATUS_TYPE", result.toString());
                 throw new Exception("returns null");
             }
 
             if (!((String) result.get("status")).equals("0000")) {
                 // ex ) {"message":"Database Fail","status":"5400"}
                 LogInfoFormatter.logInfo(tag + " : " + "/public/orderbook/" + getCurrentCoinType() + " : " + result.toString());
+                String serverMessage = (String) result.get("message");
+                sendErrorCard("API Error", "Orderbook API 오류", "/public/orderbook/" + getCurrentCoinType(), (String) result.get("status"), serverMessage);
                 throw new Exception("returns null");
             }
         } catch (Exception e) {
             e.printStackTrace();
             LogInfoFormatter.logInfo(tag + " : " + "/public/orderbook/" + getCurrentCoinType() + " : " + e.getMessage());
+            sendErrorCard("API Error", "Orderbook API 호출 중 예외 발생", "/public/orderbook/" + getCurrentCoinType(), "EXCEPTION", e.getMessage());
             throw new Exception("returns null");
         }
 
@@ -603,12 +610,14 @@ public class OrderManager {
             if (result == null) {
                 LogInfoFormatter.logInfo(tag + " : " + "/public/ticker : null");
                 saveApiStats("/public/ticker", "GET", 0, System.currentTimeMillis() - startTime, false, "null response");
+                sendErrorCard("API Error", "Ticker API 응답이 null입니다", "/public/ticker/" + getCurrentCoinType(), "NULL_RESPONSE", "API 응답이 null입니다");
                 throw new Exception("returns null");
             }
 
             if (result.get("status") instanceof Long) {
                 LogInfoFormatter.logInfo(tag + " : " + "/public/ticker : " + result.toString());
                 saveApiStats("/public/ticker", "GET", 0, System.currentTimeMillis() - startTime, false, "invalid status type");
+                sendErrorCard("API Error", "Ticker API 상태 타입 오류", "/public/ticker/" + getCurrentCoinType(), "INVALID_STATUS_TYPE", result.toString());
                 throw new Exception("returns null");
             }
 
@@ -617,6 +626,8 @@ public class OrderManager {
             if (!status.equals("0000")) {
                 LogInfoFormatter.logInfo(tag + " : " + "/public/ticker : " + result.toString());
                 saveApiStats("/public/ticker", "GET", Integer.parseInt(status), System.currentTimeMillis() - startTime, false, (String) result.get("message"));
+                String serverMessage = (String) result.get("message");
+                sendErrorCard("API Error", "Ticker API 오류", "/public/ticker/" + getCurrentCoinType(), status, serverMessage);
                 throw new Exception("returns null");
             }
             
@@ -628,6 +639,7 @@ public class OrderManager {
             e.printStackTrace();
             LogInfoFormatter.logInfo(tag + " : " + "/public/ticker : " + e.getMessage());
             saveApiStats("/public/ticker", "GET", 500, System.currentTimeMillis() - startTime, false, e.getMessage());
+            sendErrorCard("API Error", "Ticker API 호출 중 예외 발생", "/public/ticker/" + getCurrentCoinType(), "EXCEPTION", e.getMessage());
             throw new Exception("returns null");
         }
 

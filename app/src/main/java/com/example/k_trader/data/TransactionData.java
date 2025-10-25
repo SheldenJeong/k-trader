@@ -132,7 +132,7 @@ public class TransactionData {
      */
     public TransactionStatusPage.CardAdapter.TransactionCard oTransactionCard() {
         return new TransactionStatusPage.CardAdapter.TransactionCard(
-            transactionTime, btcCurrentPrice, hourlyChange, estimatedBalance,
+            transactionTime, hourlyChange, estimatedBalance,
             lastBuyPrice, lastSellPrice, nextBuyPrice
         );
     }

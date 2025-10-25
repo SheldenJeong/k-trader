@@ -669,7 +669,11 @@ public class MainPage extends Fragment {
                 },
                 throwable -> {
                     Log.e("KTrader", "[MainPage] Error refreshing coin data", throwable);
-                    Toast.makeText(getContext(), "데이터 새로고침 중 오류가 발생했습니다.", Toast.LENGTH_SHORT).show();
+                    if (getActivity() != null) {
+                        getActivity().runOnUiThread(() -> {
+                            Toast.makeText(getContext(), "데이터 새로고침 중 오류가 발생했습니다.", Toast.LENGTH_SHORT).show();
+                        });
+                    }
                 }
             );
     }

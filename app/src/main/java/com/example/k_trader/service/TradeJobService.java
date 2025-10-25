@@ -140,7 +140,7 @@ public class TradeJobService extends Service {
                             tradeBusinessLogic();
                         } catch (Exception e) {
                             LogInfoFormatter.logInfo(LogInfoFormatter.formatBusinessLogicError(e.getMessage()));
-                            sendErrorCard("Trade Business Logic Error", ERR_BUSINESS_001.getDescription());
+                            sendErrorCard("거래 비즈니스 로직 오류", ERR_BUSINESS_001.getDescription());
                         }
                     }).start();
                     
@@ -309,12 +309,12 @@ public class TradeJobService extends Service {
                     Log.d("KTrader", "[TradeJobService] Using BTC balance: " + availableCoinBalance);
                 } else {
                     LogInfoFormatter.logInfo(LogInfoFormatter.formatBalanceError());
-                    sendErrorCard("Balance Error", ERR_API_003.getDescription());
+                    sendErrorCard("잔고 오류", ERR_API_003.getDescription());
                     return;
                 }
             } else {
                 LogInfoFormatter.logInfo(LogInfoFormatter.formatBalanceError());
-                sendErrorCard("Balance Error", ERR_API_003.getDescription());
+                sendErrorCard("잔고 오류", ERR_API_003.getDescription());
                 return;
             }
         }
@@ -330,12 +330,12 @@ public class TradeJobService extends Service {
                     currentPrice = (int)Double.parseDouble(priceStr);
                 } else {
                     LogInfoFormatter.logInfo(LogInfoFormatter.formatPriceError());
-                    sendErrorCard("Price Error", ERR_API_004.getDescription());
+                    sendErrorCard("가격 오류", ERR_API_004.getDescription());
                     return;
                 }
             } else {
                 LogInfoFormatter.logInfo(LogInfoFormatter.formatBuyOrderError());
-                sendErrorCard("Buy Order Error", ERR_API_002.getDescription());
+                sendErrorCard("매수 주문 오류", ERR_API_002.getDescription());
                 return;
             }
 
@@ -740,6 +740,9 @@ public class TradeJobService extends Service {
             Log.d("KTrader", "[TradeJobService] 매수 주문 로직 시작 - 현재가: " + currentPrice);
             Log.d("KTrader", "[TradeJobService] KRW 잔고: " + krwBalance);
             
+            // 잔고 부족 메시지 출력 여부를 추적하는 플래그
+            boolean insufficientBalanceMessageShown = false;
+            
             for (int i = 0; i< BUY_SLOT_LOOK_ASIDE_MAX; i++) {
                 int targetPrice = getFloorPrice(currentPrice);
                 targetPrice -= (i * (MainPage.getSlotIntervalPrice(targetPrice)));
@@ -769,10 +772,14 @@ public class TradeJobService extends Service {
                 
                 // 부동소수점 오차를 고려한 잔고 확인 (0.01원 여유분 추가)
                 if (krwBalance < (requiredAmount + 0.01)) {
-                    LogInfoFormatter.logInfo("잔고 부족으로 매수 주문을 건너뜁니다. 필요: " +
-                        String.format(Locale.getDefault(), "%,.2f", requiredAmount) + 
-                        "원, 보유: " + String.format(Locale.getDefault(), "%,.2f", krwBalance) + "원");
-                    Log.d("KTrader", "[TradeJobService] 잔고 부족으로 매수 주문 건너뜀");
+                    // 잔고 부족 메시지는 한 번만 출력
+                    if (!insufficientBalanceMessageShown) {
+                        LogInfoFormatter.logInfo("잔고 부족으로 매수 주문을 건너뜁니다. 필요: " +
+                            String.format(Locale.getDefault(), "%,.0f", requiredAmount) + 
+                            "원, 보유: " + String.format(Locale.getDefault(), "%,.0f", krwBalance) + "원");
+                        Log.d("KTrader", "[TradeJobService] 잔고 부족으로 매수 주문 건너뜀");
+                        insufficientBalanceMessageShown = true;
+                    }
                     continue; // 다음 슬롯으로 이동
                 }
 
@@ -921,7 +928,7 @@ public class TradeJobService extends Service {
             // 시간당 변화율은 API에서 가져온 실제 데이터 사용
             String hourlyChange = getCurrentPriceChangeFromApi();
             
-            String estimatedBalance = String.format(Locale.getDefault(), "₩%,.0f", krwBalance);
+            String estimatedBalance = String.format(Locale.getDefault(), "₩%,d", (long)krwBalance);
             
             // 마지막 매수 정보 가져오기
             String lastBuyPrice = "정보 없음";
@@ -972,7 +979,7 @@ public class TradeJobService extends Service {
             Log.e("[TradeJobService]", "카드 데이터 전송 중 오류 발생", e);
             
             // 에러 카드 전송
-            sendErrorCard("Card Data Send Error", ERR_CARD_DATA_001.getDescription());
+            sendErrorCard("카드 데이터 전송 오류", ERR_CARD_DATA_001.getDescription());
         }
     }
     

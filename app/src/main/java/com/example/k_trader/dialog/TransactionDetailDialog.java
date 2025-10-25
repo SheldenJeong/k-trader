@@ -57,18 +57,16 @@ public class TransactionDetailDialog extends Dialog {
         // 데이터 설정
         textTransactionTime.setText(transactionCard.transactionTime != null ? 
             transactionCard.transactionTime : "정보 없음");
-        textBtcCurrentPrice.setText(transactionCard.btcCurrentPrice != null ? 
-            transactionCard.btcCurrentPrice + " KRW" : "정보 없음");
-        textHourlyChange.setText(transactionCard.hourlyChange != null ? 
+        textHourlyChange.setText(transactionCard.hourlyChange != null ?
             transactionCard.hourlyChange : "정보 없음");
         textEstimatedBalance.setText(transactionCard.estimatedBalance != null ? 
             transactionCard.estimatedBalance + " BTC" : "정보 없음");
         textLastBuyPrice.setText(transactionCard.lastBuyPrice != null ? 
-            transactionCard.lastBuyPrice + " KRW" : "정보 없음");
+            transactionCard.lastBuyPrice + " 원" : "정보 없음");
         textLastSellPrice.setText(transactionCard.lastSellPrice != null ? 
-            transactionCard.lastSellPrice + " KRW" : "정보 없음");
+            transactionCard.lastSellPrice + " 원" : "정보 없음");
         textNextBuyPrice.setText(transactionCard.nextBuyPrice != null ? 
-            transactionCard.nextBuyPrice + " KRW" : "정보 없음");
+            transactionCard.nextBuyPrice + " 원" : "정보 없음");
         
         // 시간 포맷팅 (타임스탬프인 경우)
         if (transactionCard.transactionTime != null && 
@@ -84,7 +82,6 @@ public class TransactionDetailDialog extends Dialog {
         }
         
         // 가격 포맷팅 (숫자인 경우)
-        formatPrice(textBtcCurrentPrice, transactionCard.btcCurrentPrice);
         formatPrice(textLastBuyPrice, transactionCard.lastBuyPrice);
         formatPrice(textLastSellPrice, transactionCard.lastSellPrice);
         formatPrice(textNextBuyPrice, transactionCard.nextBuyPrice);
@@ -98,9 +95,9 @@ public class TransactionDetailDialog extends Dialog {
             try {
                 double priceValue = Double.parseDouble(price);
                 textView.setText(String.format(java.util.Locale.getDefault(), 
-                    "%,.0f KRW", priceValue));
+                    "%,.0f 원", priceValue));
             } catch (NumberFormatException e) {
-                textView.setText(price + " KRW");
+                textView.setText(price + " 원");
             }
         }
     }

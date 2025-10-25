@@ -85,8 +85,7 @@ public class LogInfoFormatter {
      * @return 포맷팅된 매도 완료 잔고 문자열
      */
     public static String formatSellCompleteBalance(long sellCompleteBalance, long orderBalance, String coinType) {
-        return coinType + " 매도완료시: " + String.format(Locale.getDefault(), "%,d", sellCompleteBalance)
-                + "\n" + "주문잔고: " + String.format(Locale.getDefault(), "%,d", orderBalance);
+        return coinType + " 매도완료시: " + String.format(Locale.getDefault(), "%,d", sellCompleteBalance);
     }
     
     /**
