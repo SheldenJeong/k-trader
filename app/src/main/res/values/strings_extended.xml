@@ -16,6 +16,7 @@
     
     <!-- Card View 항목들 -->
     <string name="transaction_time">거래 시간</string>
+    <string name="coin_kwvalue">코인 원화 잔고</string>
     <string name="estimated_balance">예상 잔고</string>
     <string name="last_buy_price">마지막 매수 가격</string>
     <string name="last_sell_price">마지막 매도 가격</string>

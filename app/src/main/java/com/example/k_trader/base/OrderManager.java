@@ -517,12 +517,21 @@ public class OrderManager {
     }
 
     public JSONObject getBalance(String tag) throws Exception {
+        // 기본값으로 모든 코인 정보 가져오기
+        HashMap<String, String> params = new HashMap<>();
+        params.put("currency", "ALL");
+        return getBalanceWithParams(tag, params);
+    }
+    
+    public JSONObject getBalanceWithParams(String tag, HashMap<String, String> params) throws Exception {
         Api_Client api = tradeApiService.getApiService();
         JSONObject result = null;
         long startTime = System.currentTimeMillis();
 
         try {
-            result = api.callApi("POST", "/info/balance", null);
+            // Bithumb API 문서에 따르면 currency 파라미터를 설정하여 특정 코인 또는 모든 코인 정보를 가져올 수 있습니다
+            // https://apidocs.bithumb.com/v1.2.0/reference/%EB%B3%B4%EC%9C%A0%EC%9E%90%EC%82%B0-%EC%A1%B0%ED%9A%8C
+            result = api.callApi("POST", "/info/balance", params);
 
             if (result == null) {
                 LogInfoFormatter.logInfo(tag + " : " + "/info/balance : null");

@@ -29,6 +29,7 @@ import org.json.simple.JSONObject;
 
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -291,26 +292,60 @@ public class TradeJobService extends Service {
         // 잔고를 가져와 업데이트 한다.
         double krwBalance;
         {
-            JSONObject dataObj = orderManager.getBalance("");
+            // 코인 타입에 따라 Balance 조회
+            String coinType = getCurrentCoinType();
+            String coinTypeLower = coinType.toLowerCase();
+            
+            // 코인 타입별 Balance API 호출
+            HashMap<String, String> balanceParams = new HashMap<>();
+            balanceParams.put("currency", coinType); // BTC, ETH 등
+            
+            JSONObject dataObj = orderManager.getBalanceWithParams("", balanceParams);
             String totalKrw = (String) dataObj.get("total_krw");
-            String availableBtc = (String) dataObj.get("available_btc");
-            String availableEth = (String) dataObj.get("available_eth");
+            
+            // Bithumb API 응답 필드명 규칙에 따라 동적으로 생성
+            // - available_{currency} (예: available_eth)
+            // - total_{currency} (예: total_eth)
+            // - in_use{currency} (예: in_useeth) 또는 in_use_{currency} (예: in_use_eth)
+            String availableCoinField = "available_" + coinTypeLower;
+            String totalCoinField = "total_" + coinTypeLower;
+            String inUseCoinField1 = "in_use" + coinTypeLower; // 중괄호 없이 (in_useeth)
+            String inUseCoinField2 = "in_use_" + coinTypeLower; // 언더스코어 포함 (in_use_eth)
+            
+            // 동적으로 코인 잔고 가져오기 (두 가지 패턴 모두 시도)
+            String availableCoin = dataObj.get(availableCoinField) != null ? dataObj.get(availableCoinField).toString() : null;
+            String totalCoin = dataObj.get(totalCoinField) != null ? dataObj.get(totalCoinField).toString() : null;
+            String inUseCoin = null;
+            if (dataObj.get(inUseCoinField2) != null) {
+                inUseCoin = dataObj.get(inUseCoinField2).toString(); // in_use_eth 형식 우선
+            } else if (dataObj.get(inUseCoinField1) != null) {
+                inUseCoin = dataObj.get(inUseCoinField1).toString(); // in_useeth 형식 대체
+            }
+            
+            // backward compatibility를 위해 BTC/ETH도 명시적으로 가져오기
+            String availableBtc = dataObj.get("available_btc") != null ? dataObj.get("available_btc").toString() : null;
+            String availableEth = dataObj.get("available_eth") != null ? dataObj.get("available_eth").toString() : null;
 
             if (totalKrw != null) {
                 krwBalance = Double.parseDouble(totalKrw);
                 
                 // 현재 설정된 코인 타입에 따라 적절한 잔고 사용
-                String coinType = getCurrentCoinType();
-                if ("ETH".equals(coinType) && availableEth != null) {
-                    availableCoinBalance = Double.parseDouble(availableEth);
-                    Log.d("KTrader", "[TradeJobService] Using ETH balance: " + availableCoinBalance);
-                } else if (availableBtc != null) {
-                    availableCoinBalance = Double.parseDouble(availableBtc);
-                    Log.d("KTrader", "[TradeJobService] Using BTC balance: " + availableCoinBalance);
+                Log.d("KTrader", "[TradeJobService] Current coin type: " + coinType);
+                Log.d("KTrader", "[TradeJobService] Dynamic coin fields:");
+                Log.d("KTrader", "[TradeJobService]   - availableCoinField: " + availableCoinField + " = " + availableCoin);
+                Log.d("KTrader", "[TradeJobService]   - totalCoinField: " + totalCoinField + " = " + totalCoin);
+                Log.d("KTrader", "[TradeJobService]   - inUseCoinField1: " + inUseCoinField1 + " = " + (dataObj.get(inUseCoinField1) != null ? dataObj.get(inUseCoinField1).toString() : "null"));
+                Log.d("KTrader", "[TradeJobService]   - inUseCoinField2: " + inUseCoinField2 + " = " + (dataObj.get(inUseCoinField2) != null ? dataObj.get(inUseCoinField2).toString() : "null"));
+                Log.d("KTrader", "[TradeJobService]   - inUseCoin (final): " + inUseCoin);
+                Log.d("KTrader", "[TradeJobService] Backward compatibility - availableBtc: " + availableBtc + ", availableEth: " + availableEth);
+                Log.d("KTrader", "[TradeJobService] totalKrw: " + totalKrw);
+                
+                if (availableCoin != null && !availableCoin.isEmpty()) {
+                    availableCoinBalance = Double.parseDouble(availableCoin);
+                    Log.d("KTrader", "[TradeJobService] Using " + coinType + " balance: " + availableCoinBalance);
                 } else {
-                    LogInfoFormatter.logInfo(LogInfoFormatter.formatBalanceError());
-                    sendErrorCard("잔고 오류", ERR_API_003.getDescription());
-                    return;
+                    Log.w("KTrader", "[TradeJobService] " + availableCoinField + " is null or empty, using 0.0");
+                    availableCoinBalance = 0.0;
                 }
             } else {
                 LogInfoFormatter.logInfo(LogInfoFormatter.formatBalanceError());
@@ -341,15 +376,45 @@ public class TradeJobService extends Service {
 
             LogInfoFormatter.logInfo(LogInfoFormatter.formatCurrentPrice(getCurrentCoinType(), currentPrice));
             
-            // 카드 데이터 전송
-            sendCardData(currentPrice, krwBalance);
+            // availableCoinBalance의 원본 값 저장 (매도 주문 처리 전에 기록)
+            double originalAvailableCoinBalance = availableCoinBalance;
+            
+            // inUseCoin 값을 다시 가져와서 계산 (상위 스코프에서 접근 가능하도록)
+            // 동적으로 in_use 필드명 생성
+            String coinType = getCurrentCoinType();
+            String coinTypeLower = coinType.toLowerCase();
+            String inUseCoinField = "in_use_" + coinTypeLower;
+            
+            // Balance API를 다시 호출하여 inUseCoin 값 가져오기
+            double inUseCoin = 0.0;
+            try {
+                HashMap<String, String> balanceParamsForInUse = new HashMap<>();
+                balanceParamsForInUse.put("currency", coinType);
+                JSONObject dataObjForInUse = orderManager.getBalanceWithParams("", balanceParamsForInUse);
+                
+                if (dataObjForInUse.get(inUseCoinField) != null) {
+                    String inUseCoinStr = dataObjForInUse.get(inUseCoinField).toString();
+                    inUseCoin = Double.parseDouble(inUseCoinStr);
+                }
+            } catch (Exception e) {
+                Log.e("KTrader", "[TradeJobService] Error getting inUseCoin for coinValue calculation", e);
+            }
+            
+            // available + in_use 합계로 코인 원화 잔고 계산
+            double totalCoinBalance = originalAvailableCoinBalance + inUseCoin;
+            
+            Log.d("KTrader", "[TradeJobService] 원본 availableCoinBalance: " + originalAvailableCoinBalance);
+            Log.d("KTrader", "[TradeJobService] inUseCoin: " + inUseCoin);
+            Log.d("KTrader", "[TradeJobService] totalCoinBalance (available + in_use): " + totalCoinBalance);
+            
+            // 카드 데이터 전송 (available + in_use 합계 사용)
+            sendCardData(currentPrice, krwBalance, totalCoinBalance);
 
             // 빗썸은 0.0001 코인이 최소 거래 단위이므로 체크
-            String coinType = getCurrentCoinType();
             if (currentPrice / 10000 > GlobalSettings.getInstance().getUnitPrice()) {
                 LogInfoFormatter.logInfo(LogInfoFormatter.formatTradingAmountWarning(
                         GlobalSettings.getInstance().getUnitPrice(), 
-                        coinType, 
+                        getCurrentCoinType(), 
                         currentPrice / 10000));
                 return;
             }
@@ -764,7 +829,7 @@ public class TradeJobService extends Service {
                     continue;
                 }
 
-                LogInfoFormatter.logInfo(LogInfoFormatter.formatNextLowBuyPrice(targetPrice));
+                if (i == 0) LogInfoFormatter.logInfo(LogInfoFormatter.formatNextLowBuyPrice(targetPrice));
 
                 // 매수 주문 전 잔고 확인 (부동소수점 오차 고려)
                 double requiredAmount = getUnitAmount4Price(targetPrice) * targetPrice;
@@ -916,7 +981,7 @@ public class TradeJobService extends Service {
         this.orderManager = orderManager;
     }
     
-    private void sendCardData(int currentPrice, double krwBalance) {
+    private void sendCardData(int currentPrice, double krwBalance, double availableCoinBalance) {
         try {
             Calendar currentTime = Calendar.getInstance();
             String transactionTime = String.format(Locale.getDefault(), "%d/%02d/%02d %02d:%02d:%02d",
@@ -930,6 +995,11 @@ public class TradeJobService extends Service {
             
             String estimatedBalance = String.format(Locale.getDefault(), "₩%,d", (long)krwBalance);
             
+            // coinValue 계산 로그 추가
+            Log.d("KTrader", "[TradeJobService] coinValue 계산 - availableCoinBalance: " + availableCoinBalance + ", currentPrice: " + currentPrice);
+            
+            String coinValue = String.format(Locale.getDefault(), "₩%,d", (long)(availableCoinBalance * currentPrice));
+
             // 마지막 매수 정보 가져오기
             String lastBuyPrice = "정보 없음";
             TradeData lastBuyData = processedOrderManager.findLatestProcessedTime(BUY);
@@ -968,12 +1038,24 @@ public class TradeJobService extends Service {
             intent.putExtra("transactionTime", transactionTime);
             intent.putExtra("btcCurrentPrice", coinCurrentPrice);  // MainPage에서 사용하는 키로 변경
             intent.putExtra("hourlyChange", hourlyChange);
+            intent.putExtra("coinKwValue", coinValue);
             intent.putExtra("estimatedBalance", estimatedBalance);
             intent.putExtra("lastBuyPrice", lastBuyPrice);
             intent.putExtra("lastSellPrice", lastSellPrice);
             intent.putExtra("nextBuyPrice", nextBuyPrice);
             
             Log.d("KTrader", "[TradeJobService] Sending card data - Price: " + coinCurrentPrice + ", Change: " + hourlyChange);
+            
+            // TransactionData 생성 및 coinKwValue 설정
+            com.example.k_trader.data.TransactionData transactionData = new com.example.k_trader.data.TransactionData(
+                transactionTime, coinCurrentPrice, hourlyChange, getDailyChangeFromApi(),
+                estimatedBalance, coinValue, lastBuyPrice, lastSellPrice, nextBuyPrice
+            );
+            
+            // TransactionDataManager를 통해 데이터 전송
+            com.example.k_trader.data.TransactionDataManager dataManager = 
+                com.example.k_trader.data.TransactionDataManager.getInstance(KTraderApplication.getAppContext());
+            
             LocalBroadcastManager.getInstance(KTraderApplication.getAppContext()).sendBroadcast(intent);
         } catch (Exception e) {
             Log.e("[TradeJobService]", "카드 데이터 전송 중 오류 발생", e);

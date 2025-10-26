@@ -115,6 +115,33 @@
 
         </LinearLayout>
 
+        <!-- 총 잔고 (코인 원화 잔고 + 예상 잔고) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="12dp">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="총 잔고"
+                android:textColor="#666666"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/textDetailTotalBalance"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="₩10,000,000"
+                android:textColor="#FF4444"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+        </LinearLayout>
+
         <!-- 마지막 매수 가격 -->
         <LinearLayout
             android:layout_width="match_parent"

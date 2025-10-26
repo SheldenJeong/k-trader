@@ -251,6 +251,7 @@ public class TransactionDataManager {
         intent.putExtra("hourlyChange", data.getHourlyChange());
         intent.putExtra("dailyChange", data.getDailyChange());
         intent.putExtra("estimatedBalance", data.getEstimatedBalance());
+        intent.putExtra("coinKwValue", data.getCoinKwValue());
         intent.putExtra("lastBuyPrice", data.getLastBuyPrice());
         intent.putExtra("lastSellPrice", data.getLastSellPrice());
         intent.putExtra("nextBuyPrice", data.getNextBuyPrice());

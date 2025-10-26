@@ -17,6 +17,8 @@ import android.view.ViewGroup;
 import android.widget.TextView;
 
 import com.example.k_trader.R;
+import com.example.k_trader.base.GlobalSettings;
+import com.example.k_trader.base.OrderManager;
 import com.example.k_trader.base.TradeData;
 import com.example.k_trader.database.DatabaseMonitor;
 import com.example.k_trader.database.ApiCallResultRepository;
@@ -176,25 +178,28 @@ public class TransactionStatusPage extends Fragment implements DatabaseMonitor.D
             disposables.add(disposable);
         }
     }
-    
+
     /**
      * DB에서 받은 Transaction 정보로 TransactionCard 업데이트
      */
     private void updateTransactionCardFromDB(TransactionInfoEntity transactionInfo) {
         if (transactionInfo == null || cardAdapter == null) return;
-        
+
         android.util.Log.d("KTrader", "[TransactionItemFragment] Updating TransactionCard from DB: " + transactionInfo.toString());
-        
+
+        // coinKwValue 계산
+        String coinKwValue = calculateCoinKwValue();
+
         // TransactionCard 생성
         CardAdapter.TransactionCard card = new CardAdapter.TransactionCard(
             transactionInfo.getTransactionTime(),
-            transactionInfo.getHourlyChange(),
+            coinKwValue, // 계산된 coinKwValue 사용
             transactionInfo.getEstimatedBalance(),
             transactionInfo.getLastBuyPrice(),
             transactionInfo.getLastSellPrice(),
             transactionInfo.getNextBuyPrice()
         );
-        
+
         // 서버에서 온 데이터인 경우 기존 캐시 데이터를 대체
         if (transactionInfo.isFromServer()) {
             cardAdapter.updateLatestCard(card);
@@ -346,13 +351,14 @@ public class TransactionStatusPage extends Fragment implements DatabaseMonitor.D
                 // 카드 데이터 처리
                 String transactionTime = intent.getStringExtra("transactionTime");
                 String hourlyChange = intent.getStringExtra("hourlyChange");
+                String coinKwValue = intent.getStringExtra("coinKwValue");
                 String estimatedBalance = intent.getStringExtra("estimatedBalance");
                 String lastBuyPrice = intent.getStringExtra("lastBuyPrice");
                 String lastSellPrice = intent.getStringExtra("lastSellPrice");
                 String nextBuyPrice = intent.getStringExtra("nextBuyPrice");
                 
                 CardAdapter.TransactionCard card = new CardAdapter.TransactionCard(
-                    transactionTime, estimatedBalance, hourlyChange,
+                    transactionTime, coinKwValue, estimatedBalance,
                     lastBuyPrice, lastSellPrice, nextBuyPrice
                 );
                 
@@ -381,16 +387,17 @@ public class TransactionStatusPage extends Fragment implements DatabaseMonitor.D
                 String transactionTime = intent.getStringExtra("transactionTime");
                 String hourlyChange = intent.getStringExtra("hourlyChange");
                 String dailyChange = intent.getStringExtra("dailyChange");
+                String coinKwValue = intent.getStringExtra("coinKwValue");
                 String estimatedBalance = intent.getStringExtra("estimatedBalance");
                 String lastBuyPrice = intent.getStringExtra("lastBuyPrice");
                 String lastSellPrice = intent.getStringExtra("lastSellPrice");
                 String nextBuyPrice = intent.getStringExtra("nextBuyPrice");
                 boolean isFromServer = intent.getBooleanExtra("isFromServer", false);
                 
-                android.util.Log.d("KTrader", "[TransactionItemFragment] Received transaction data - hourlyChange: " + hourlyChange + ", dailyChange: " + dailyChange);
+                Log.d("KTrader", "[TransactionItemFragment] Received transaction data - hourlyChange: " + hourlyChange + ", dailyChange: " + dailyChange);
                 
                 CardAdapter.TransactionCard card = new CardAdapter.TransactionCard(
-                    transactionTime, estimatedBalance, hourlyChange,
+                    transactionTime, coinKwValue, estimatedBalance,
                     lastBuyPrice, lastSellPrice, nextBuyPrice
                 );
                 
@@ -419,20 +426,48 @@ public class TransactionStatusPage extends Fragment implements DatabaseMonitor.D
 
         public static class TransactionCard {
             public String transactionTime;
-            public String estimatedBalance;
-            public String hourlyChange;
+            public String coinKwValue;        // 코인 원화 잔고
+            public String estimatedBalance;   // 예상잔고
+            public String totalBalance;        // 코인 원화 잔고 + 예상잔고 (총 잔고)
+            public String krwBalance;
             public String lastBuyPrice;
             public String lastSellPrice;
             public String nextBuyPrice;
 
-            public TransactionCard(String transactionTime, String estimatedBalance,
-                                String hourlyChange, String lastBuyPrice, String lastSellPrice, String nextBuyPrice) {
+            public TransactionCard(String transactionTime, String coinKwValue, String estimatedBalance,
+                                   String lastBuyPrice, String lastSellPrice, String nextBuyPrice) {
                 this.transactionTime = transactionTime;
+                this.coinKwValue = coinKwValue;
                 this.estimatedBalance = estimatedBalance;
-                this.hourlyChange = hourlyChange;
+                this.krwBalance = coinKwValue;
+                
+                // 코인 원화 잔고와 예상잔고 합산
+                this.totalBalance = calculateTotalBalance(coinKwValue, estimatedBalance);
+                
                 this.lastBuyPrice = lastBuyPrice;
                 this.lastSellPrice = lastSellPrice;
                 this.nextBuyPrice = nextBuyPrice;
+            }
+            
+            /**
+             * 코인 원화 잔고와 예상잔고를 합산하여 총 잔고 계산
+             */
+            private String calculateTotalBalance(String coinKwValue, String estimatedBalance) {
+                try {
+                    // 정규표현식으로 숫자만 추출
+                    String coinKwNum = coinKwValue.replaceAll("[^0-9,]", "").replace(",", "");
+                    String estimatedNum = estimatedBalance.replaceAll("[^0-9,]", "").replace(",", "");
+                    
+                    long coinValue = Long.parseLong(coinKwNum);
+                    long estimated = Long.parseLong(estimatedNum);
+                    
+                    long total = coinValue + estimated;
+                    
+                    return String.format(java.util.Locale.getDefault(), "₩%,d", total);
+                } catch (Exception e) {
+                    Log.e("KTrader", "[TransactionCard] Error calculating total balance", e);
+                    return "₩0";
+                }
             }
             
             /**
@@ -493,8 +528,9 @@ public class TransactionStatusPage extends Fragment implements DatabaseMonitor.D
 
         public static class CardViewHolder extends RecyclerView.ViewHolder {
             TextView textTransactionTime;
-            TextView textHourlyChange;
+            TextView textCoinKwValue;
             TextView textEstimatedBalance;
+            TextView textTotalBalance;
             TextView textLastBuyPrice;
             TextView textLastSellPrice;
             TextView textNextBuyPrice;
@@ -504,8 +540,9 @@ public class TransactionStatusPage extends Fragment implements DatabaseMonitor.D
                 super(itemView);
                 this.adapter = adapter;
                 textTransactionTime = itemView.findViewById(R.id.textTransactionTime);
-                textHourlyChange = itemView.findViewById(R.id.textHourlyChange);
+                textCoinKwValue = itemView.findViewById(R.id.textCoinKwValue);
                 textEstimatedBalance = itemView.findViewById(R.id.textEstimatedBalance);
+                textTotalBalance = itemView.findViewById(R.id.textTotalBalance);
                 textLastBuyPrice = itemView.findViewById(R.id.textLastBuyPrice);
                 textLastSellPrice = itemView.findViewById(R.id.textLastSellPrice);
                 textNextBuyPrice = itemView.findViewById(R.id.textNextBuyPrice);
@@ -591,8 +628,9 @@ public class TransactionStatusPage extends Fragment implements DatabaseMonitor.D
                 TransactionCard card = (TransactionCard) cardList.get(position);
                 CardViewHolder cardHolder = (CardViewHolder) holder;
                 cardHolder.textTransactionTime.setText(card.transactionTime);
-                cardHolder.textHourlyChange.setText(card.estimatedBalance);
+                cardHolder.textCoinKwValue.setText(card.krwBalance);
                 cardHolder.textEstimatedBalance.setText(card.estimatedBalance);
+                cardHolder.textTotalBalance.setText(card.totalBalance);
                 cardHolder.textLastBuyPrice.setText(card.lastBuyPrice);
                 cardHolder.textLastSellPrice.setText(card.lastSellPrice);
                 cardHolder.textNextBuyPrice.setText(card.nextBuyPrice);
@@ -732,6 +770,55 @@ public class TransactionStatusPage extends Fragment implements DatabaseMonitor.D
                 // RecyclerView가 레이아웃이 완료된 후 스크롤 실행
                 recyclerViewCards.post(() -> recyclerViewCards.smoothScrollToPosition(itemCount - 1));
             }
+        }
+    }
+
+    /**
+     * OrderManager를 사용하여 coinKwValue 계산
+     * coinKwValue = availableCoin * currentPrice
+     */
+    private String calculateCoinKwValue() {
+        try {
+            // OrderManager 인스턴스 생성
+            OrderManager orderManager = new OrderManager();
+            
+            // 현재 가격 가져오기 (빈 문자열로 모든 코인 타입)
+            org.json.simple.JSONObject priceObj = orderManager.getCurrentPrice("");
+            double currentPrice = Double.parseDouble(priceObj.get("data").toString());
+            
+            // 잔고 정보 가져오기
+            org.json.simple.JSONObject dataObj = orderManager.getBalance("");
+            
+            // BTC와 ETH 잔고 가져오기
+            String availableBtcStr = dataObj.get("available_btc").toString();
+            String availableEthStr = dataObj.get("available_eth").toString();
+            
+            // 문자열을 double로 변환
+            double availableBtc = Double.parseDouble(availableBtcStr);
+            double availableEth = Double.parseDouble(availableEthStr);
+            
+            // 현재 설정된 코인 타입에 따라 계산
+            String currentCoinType = GlobalSettings.getInstance().getCoinType();
+            double availableCoin;
+            
+            if ("BTC".equals(currentCoinType)) {
+                availableCoin = availableBtc;
+            } else if ("ETH".equals(currentCoinType)) {
+                availableCoin = availableEth;
+            } else {
+                // 기본값으로 BTC 사용
+                availableCoin = availableBtc;
+            }
+            
+            // coinKwValue 계산
+            double coinKwValue = availableCoin * currentPrice;
+            
+            // 포맷팅하여 반환
+            return String.format(java.util.Locale.getDefault(), "₩%,d", (long)coinKwValue);
+            
+        } catch (Exception e) {
+            Log.e("KTrader", "[TransactionStatusPage] Error calculating coinKwValue", e);
+            return "₩0";
         }
     }
 }

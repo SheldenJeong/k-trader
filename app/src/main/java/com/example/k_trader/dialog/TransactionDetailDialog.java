@@ -50,6 +50,7 @@ public class TransactionDetailDialog extends Dialog {
         TextView textBtcCurrentPrice = view.findViewById(R.id.textDetailBtcCurrentPrice);
         TextView textHourlyChange = view.findViewById(R.id.textDetailHourlyChange);
         TextView textEstimatedBalance = view.findViewById(R.id.textDetailEstimatedBalance);
+        TextView textTotalBalance = view.findViewById(R.id.textDetailTotalBalance);
         TextView textLastBuyPrice = view.findViewById(R.id.textDetailLastBuyPrice);
         TextView textLastSellPrice = view.findViewById(R.id.textDetailLastSellPrice);
         TextView textNextBuyPrice = view.findViewById(R.id.textDetailNextBuyPrice);
@@ -57,10 +58,12 @@ public class TransactionDetailDialog extends Dialog {
         // 데이터 설정
         textTransactionTime.setText(transactionCard.transactionTime != null ? 
             transactionCard.transactionTime : "정보 없음");
-        textHourlyChange.setText(transactionCard.hourlyChange != null ?
-            transactionCard.hourlyChange : "정보 없음");
+        textHourlyChange.setText(transactionCard.coinKwValue != null ?
+            transactionCard.coinKwValue : "정보 없음");
         textEstimatedBalance.setText(transactionCard.estimatedBalance != null ? 
-            transactionCard.estimatedBalance + " BTC" : "정보 없음");
+            transactionCard.estimatedBalance : "정보 없음");
+        textTotalBalance.setText(transactionCard.totalBalance != null ?
+            transactionCard.totalBalance : "정보 없음");
         textLastBuyPrice.setText(transactionCard.lastBuyPrice != null ? 
             transactionCard.lastBuyPrice + " 원" : "정보 없음");
         textLastSellPrice.setText(transactionCard.lastSellPrice != null ? 

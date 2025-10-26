@@ -14,6 +14,7 @@ public class TransactionData {
     private String hourlyChange;        // 1시간 전 대비 등락률 (TransactionCard용)
     private String dailyChange;          // 전일 대비 등락률 (CoinInfo용)
     private String estimatedBalance;
+    private String coinKwValue;
     private String lastBuyPrice;
     private String lastSellPrice;
     private String nextBuyPrice;
@@ -26,13 +27,14 @@ public class TransactionData {
     }
 
     public TransactionData(String transactionTime, String btcCurrentPrice, String hourlyChange, String dailyChange,
-                             String estimatedBalance, String lastBuyPrice, String lastSellPrice, String nextBuyPrice) {
+                             String estimatedBalance, String coinKwValue, String lastBuyPrice, String lastSellPrice, String nextBuyPrice) {
         this();
         this.transactionTime = transactionTime;
         this.btcCurrentPrice = btcCurrentPrice;
         this.hourlyChange = hourlyChange;
         this.dailyChange = dailyChange;
         this.estimatedBalance = estimatedBalance;
+        this.coinKwValue = coinKwValue;
         this.lastBuyPrice = lastBuyPrice;
         this.lastSellPrice = lastSellPrice;
         this.nextBuyPrice = nextBuyPrice;
@@ -77,6 +79,14 @@ public class TransactionData {
 
     public void setEstimatedBalance(String estimatedBalance) {
         this.estimatedBalance = estimatedBalance;
+    }
+
+    public String getCoinKwValue() {
+        return coinKwValue;
+    }
+
+    public void setCoinKwValue(String coinKwValue) {
+        this.coinKwValue = coinKwValue;
     }
 
     public String getLastBuyPrice() {
@@ -132,7 +142,7 @@ public class TransactionData {
      */
     public TransactionStatusPage.CardAdapter.TransactionCard oTransactionCard() {
         return new TransactionStatusPage.CardAdapter.TransactionCard(
-            transactionTime, hourlyChange, estimatedBalance,
+            transactionTime, coinKwValue, estimatedBalance,
             lastBuyPrice, lastSellPrice, nextBuyPrice
         );
     }

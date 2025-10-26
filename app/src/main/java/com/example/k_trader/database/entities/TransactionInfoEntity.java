@@ -28,7 +28,7 @@ public class TransactionInfoEntity {
     
     @ColumnInfo(name = "estimated_balance")
     private String estimatedBalance;
-    
+
     @ColumnInfo(name = "last_buy_price")
     private String lastBuyPrice;
     
@@ -50,7 +50,7 @@ public class TransactionInfoEntity {
     
     @Ignore
     public TransactionInfoEntity(String transactionTime, String btcCurrentPrice, String hourlyChange, 
-                                String dailyChange, String estimatedBalance, String lastBuyPrice, 
+                                String dailyChange, String estimatedBalance, String lastBuyPrice,
                                 String lastSellPrice, String nextBuyPrice, boolean isFromServer) {
         this.transactionTime = transactionTime;
         this.btcCurrentPrice = btcCurrentPrice;
@@ -112,7 +112,7 @@ public class TransactionInfoEntity {
     public void setEstimatedBalance(String estimatedBalance) {
         this.estimatedBalance = estimatedBalance;
     }
-    
+
     public String getLastBuyPrice() {
         return lastBuyPrice;
     }
