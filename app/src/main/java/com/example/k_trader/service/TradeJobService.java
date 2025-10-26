@@ -734,11 +734,15 @@ public class TradeJobService extends Service {
 
         // 매수건에 대한 매도를 다 처리 했음에도 코인 잔고가 남아 있는 경우에 대한 예외처리, 가능한 slot을 찾아 매도 오더를 발행한다.
         // 예) 매수 발생 후 앱이 종료되었다가 앱이 재실행 된 경우
+        Log.d("KTrader", "[TradeJobService] 예외 처리 매도 로직 체크 시작 - availableCoinBalance: " + availableCoinBalance + ", minimumTradingAmount: " + coinSpecific.getMinimumTradingAmount());
         if (availableCoinBalance > coinSpecific.getMinimumTradingAmount()) {
+            Log.d("KTrader", "[TradeJobService] 예외 처리 매도 조건 충족 - 잔고: " + availableCoinBalance);
             LogInfoFormatter.logInfo(LogInfoFormatter.formatSellRequiredBalance(availableCoinBalance));
             // 현재가보다 상위에 비어 있는 slot 중 하나를 찾아보고 있다면 매도하도록 한다.
             int floorPrice = getFloorPrice(currentPrice);
             double unit = Math.min(getUnitAmount4Price(floorPrice), (availableCoinBalance * 10000) / 10000.0);
+            
+            Log.d("KTrader", "[TradeJobService] 예외 처리 매도 - floorPrice: " + floorPrice + ", unit: " + unit);
             
             // 코인별 특성 가져오기 (예외 처리)
             // coinSpecific은 이미 메서드 시작 부분에서 정의됨
@@ -748,63 +752,71 @@ public class TradeJobService extends Service {
                 LogInfoFormatter.logInfo("예외 처리 매도 주문 건너뜀 - 수량이 " + coinSpecific.getCoinType() + " 최소 단위보다 작음: " + unit + " (최소: " + coinSpecific.getMinimumTradingAmount() + ")");
                 Log.d("KTrader", "[TradeJobService] 예외 처리 매도 주문 건너뜀 - 수량이 " + coinSpecific.getCoinType() + " 최소 단위보다 작음: " + unit + " (최소: " + coinSpecific.getMinimumTradingAmount() + ")");
             } else {
-                int sellIntervalPrice = MainPage.getSlotIntervalPrice(floorPrice) ;
-            for (int i = 0; i< SELL_SLOT_LOOK_ASIDE_MAX; i++) {
-                int targetPrice = floorPrice + MainPage.getProfitPrice(floorPrice) + (sellIntervalPrice * (SELL_SLOT_LOOK_ASIDE_MAX - 1 - i));
+                int sellIntervalPrice = MainPage.getSlotIntervalPrice(floorPrice);
+                for (int i = 0; i < SELL_SLOT_LOOK_ASIDE_MAX; i++) {
+                    int targetPrice = floorPrice + MainPage.getProfitPrice(floorPrice) + (sellIntervalPrice * (SELL_SLOT_LOOK_ASIDE_MAX - 1 - i));
 
-                TradeData oData = placedOrderManager.findByPrice(SELL, targetPrice);
-                // 런타임에 oData 값이 변경되므로 조건문은 정상적으로 동작함
-                @SuppressWarnings("ConstantConditions")
-                boolean oDataCondition = oData == null || // Slot이 비어 있다면 해당 Slot에 매도 주문을 넣는다.
-                        (oData != null && isSameSlotOrder(oData, new TradeData().build().setUnits((float)unit), targetPrice)); // 해당 Slot에 이미 Order가 있는 경우라도 분할 매수된 경우라면 동일 가격으로 매도 주문하도록 한다.
-                if (oDataCondition) {
-                    // 예외 처리 매도 주문 전 최종 수량 검증 (코인별 특성 적용)
-                    if (!coinSpecific.isTradableQuantity(unit)) {
-                        LogInfoFormatter.logInfo("예외 처리 매도 주문 건너뜀 - 최종 수량이 " + coinSpecific.getCoinType() + " 최소 단위보다 작음: " + unit + " (최소: " + coinSpecific.getMinimumTradingAmount() + ")");
-                        Log.d("KTrader", "[TradeJobService] 예외 처리 매도 주문 건너뜀 - 최종 수량이 " + coinSpecific.getCoinType() + " 최소 단위보다 작음: " + unit + " (최소: " + coinSpecific.getMinimumTradingAmount() + ")");
-                        continue; // 다음 슬롯으로 이동
+                    TradeData oData = placedOrderManager.findByPrice(SELL, targetPrice);
+                    
+                    Log.d("KTrader", "[TradeJobService] 예외 처리 매도 슬롯 #" + i + " - targetPrice: " + targetPrice + ", oData: " + (oData != null ? oData.toString() : "null"));
+                    
+                    // 예외 처리 매도는 동일 가격으로 추가해야 하므로 항상 매도 주문 시도
+                    if (oData != null) {
+                        Log.d("KTrader", "[TradeJobService] 예외 처리 매도 - 이미 대기중인 매도 주문 존재하지만 동일 가격으로 추가 시도: " + targetPrice + ", 기존 수량: " + oData.getUnits());
                     }
                     
-                    JSONObject sellResult = orderManager.addOrder("이전 실행 매수 발생 대응 매도", SELL, unit, targetPrice);
-                    if (sellResult == null) {
-                        Log.e("KTrader", "[TradeJobService] 예외 처리 매도 주문 실패 - API 응답이 null");
-                        return;
-                    } else if (!"0000".equals(sellResult.get("status"))) {
-                        Log.e("KTrader", "[TradeJobService] 예외 처리 매도 주문 실패 - 상태: " + sellResult.get("status") + ", 메시지: " + sellResult.get("message"));
-                        return;
-                    } else {
-                        Log.d("KTrader", "[TradeJobService] 예외 처리 매도 주문 성공: " + sellResult.toString());
-                        availableCoinBalance -= unit;
-
-                        // 매도 대기 정보 업데이트 노티 발생
-                        Calendar exceptionTime = Calendar.getInstance();
-                        String notificationTitle = "매도 대기 등록";
-                        String notificationText = "매도 대기 : " + String.format(Locale.getDefault(), "%,d", targetPrice) + 
-                            ", " + String.format(Locale.getDefault(), "%02d/%02d %02d:%02d",
-                            exceptionTime.get(Calendar.MONTH) + 1, exceptionTime.get(Calendar.DATE),
-                            exceptionTime.get(Calendar.HOUR_OF_DAY), exceptionTime.get(Calendar.MINUTE));
-                        
-                        Log.d("KTrader", "[TradeJobService] 예외 처리 매도 대기 등록 노티 발생: " + notificationText);
-                        notificationManager.sendTradeNotification(notificationTitle, notificationText);
-
-                        // 실제 Order ID를 설정하여 placedOrderManager에 추가
-                        String orderId = (String) sellResult.get("order_id");
-                        if (orderId != null && !orderId.isEmpty()) {
-                            placedOrderManager.add(placedOrderManager.build()
-                                    .setType(SELL)
-                                    .setStatus(PLACED)
-                                    .setId(orderId)  // 실제 Order ID 설정
-                                    .setUnits((float)unit)
-                                    .setPrice(targetPrice));
-                            Log.d("KTrader", "[TradeJobService] 매도 주문을 placedOrderManager에 추가 - Order ID: " + orderId);
-                        } else {
-                            Log.e("KTrader", "[TradeJobService] Order ID가 null이거나 비어있음: " + sellResult.toString());
+                    // 예외 처리 매도는 동일 가격으로 추가
+                    if (true) {
+                        // 예외 처리 매도 주문 전 최종 수량 검증 (코인별 특성 적용)
+                        if (!coinSpecific.isTradableQuantity(unit)) {
+                            LogInfoFormatter.logInfo("예외 처리 매도 주문 건너뜀 - 최종 수량이 " + coinSpecific.getCoinType() + " 최소 단위보다 작음: " + unit + " (최소: " + coinSpecific.getMinimumTradingAmount() + ")");
+                            Log.d("KTrader", "[TradeJobService] 예외 처리 매도 주문 건너뜀 - 최종 수량이 " + coinSpecific.getCoinType() + " 최소 단위보다 작음: " + unit + " (최소: " + coinSpecific.getMinimumTradingAmount() + ")");
+                            continue; // 다음 슬롯으로 이동
                         }
-                        break;
+                        
+                        Log.d("KTrader", "[TradeJobService] 예외 처리 매도 주문 시도 - 가격: " + targetPrice + ", 수량: " + unit);
+                        JSONObject sellResult = orderManager.addOrder("이전 실행 매수 발생 대응 매도", SELL, unit, targetPrice);
+                        if (sellResult == null) {
+                            Log.e("KTrader", "[TradeJobService] 예외 처리 매도 주문 실패 - API 응답이 null");
+                            continue;
+                        } else if (!"0000".equals(sellResult.get("status"))) {
+                            Log.e("KTrader", "[TradeJobService] 예외 처리 매도 주문 실패 - 상태: " + sellResult.get("status") + ", 메시지: " + sellResult.get("message"));
+                            continue;
+                        } else {
+                            Log.d("KTrader", "[TradeJobService] 예외 처리 매도 주문 성공: " + sellResult.toString());
+                            availableCoinBalance -= unit;
+
+                            // 매도 대기 정보 업데이트 노티 발생
+                            Calendar exceptionTime = Calendar.getInstance();
+                            String notificationTitle = "매도 대기 등록";
+                            String notificationText = "매도 대기 : " + String.format(Locale.getDefault(), "%,d", targetPrice) + 
+                                ", " + String.format(Locale.getDefault(), "%02d/%02d %02d:%02d",
+                                exceptionTime.get(Calendar.MONTH) + 1, exceptionTime.get(Calendar.DATE),
+                                exceptionTime.get(Calendar.HOUR_OF_DAY), exceptionTime.get(Calendar.MINUTE));
+                            
+                            Log.d("KTrader", "[TradeJobService] 예외 처리 매도 대기 등록 노티 발생: " + notificationText);
+                            notificationManager.sendTradeNotification(notificationTitle, notificationText);
+
+                            // 실제 Order ID를 설정하여 placedOrderManager에 추가
+                            String orderId = (String) sellResult.get("order_id");
+                            if (orderId != null && !orderId.isEmpty()) {
+                                placedOrderManager.add(placedOrderManager.build()
+                                        .setType(SELL)
+                                        .setStatus(PLACED)
+                                        .setId(orderId)  // 실제 Order ID 설정
+                                        .setUnits((float)unit)
+                                        .setPrice(targetPrice));
+                                Log.d("KTrader", "[TradeJobService] 매도 주문을 placedOrderManager에 추가 - Order ID: " + orderId);
+                            } else {
+                                Log.e("KTrader", "[TradeJobService] Order ID가 null이거나 비어있음: " + sellResult.toString());
+                            }
+                            break;
+                        }
                     }
                 }
             }
-            }
+        } else {
+            Log.d("KTrader", "[TradeJobService] 예외 처리 매도 조건 충족하지 않음 - availableCoinBalance: " + availableCoinBalance + ", minimumTradingAmount: " + coinSpecific.getMinimumTradingAmount());
         }
 
         // 매수 요청 발행, 어느 시점에서나 active한 매수 오더는 1개만 유지하도록 한다.
