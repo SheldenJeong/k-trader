@@ -57,6 +57,15 @@ public class MainPage extends Fragment {
     // private Button btnPreference; // App bar 메뉴로 이동
     private TabLayout tabLayout;
     private ViewPager viewPager;
+    
+    // TransactionCard TextView들
+    private TextView textTransactionTimeCard;
+    private TextView textCoinKwValueCard;
+    private TextView textEstimatedBalanceCard;
+    private TextView textTotalBalanceCard;
+    private TextView textLastBuyPriceCard;
+    private TextView textLastSellPriceCard;
+    private TextView textNextBuyPriceCard;
 
     private MainActivity mainActivity;
     private boolean isTradingStarted = false;
@@ -95,6 +104,15 @@ public class MainPage extends Fragment {
         textCurrentPrice = layout.findViewById(R.id.textCurrentPrice);
         textPriceChange = layout.findViewById(R.id.textPriceChange);
         textActiveOrders = layout.findViewById(R.id.textActiveOrders);
+        
+        // TransactionCard TextView들 초기화
+        textTransactionTimeCard = layout.findViewById(R.id.textTransactionTimeCard);
+        textCoinKwValueCard = layout.findViewById(R.id.textCoinKwValueCard);
+        textEstimatedBalanceCard = layout.findViewById(R.id.textEstimatedBalanceCard);
+        textTotalBalanceCard = layout.findViewById(R.id.textTotalBalanceCard);
+        textLastBuyPriceCard = layout.findViewById(R.id.textLastBuyPriceCard);
+        textLastSellPriceCard = layout.findViewById(R.id.textLastSellPriceCard);
+        textNextBuyPriceCard = layout.findViewById(R.id.textNextBuyPriceCard);
         
         // btnPreference = layout.findViewById(R.id.imageButtonPreference); // App bar 메뉴로 이동
         tabLayout = layout.findViewById(R.id.tabLayout);

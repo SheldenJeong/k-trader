@@ -137,6 +137,22 @@
 
         </android.support.v7.widget.CardView>
 
+        <!-- Transaction Status Card -->
+        <android.support.v7.widget.CardView
+            android:id="@+id/transactionStatusCard"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_marginEnd="8dp"
+            android:layout_marginBottom="8dp"
+            app:cardCornerRadius="8dp"
+            app:cardElevation="2dp"
+            app:cardBackgroundColor="@color/surface_modern">
+
+            <include layout="@layout/transaction_status_card_inline" />
+
+        </android.support.v7.widget.CardView>
+
         <!-- TabLayout과 ViewPager -->
         <android.support.design.widget.TabLayout
             android:id="@+id/tabLayout"
