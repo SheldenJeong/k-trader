@@ -604,20 +604,16 @@ public class TradeJobService extends Service {
                     // 코인별 특성 가져오기
                     // coinSpecific은 이미 메서드 시작 부분에서 정의됨
                     
-                    // 코인 잔고가 코인별 최소 거래 수량보다 작은 경우 매도 주문 건너뜀
-                    if (availableCoinBalance <= coinSpecific.getMinimumTradingAmount()) {
-                        LogInfoFormatter.logInfo("매도 주문 건너뜀 - 코인 잔고 부족: " + availableCoinBalance + " (최소: " + coinSpecific.getMinimumTradingAmount() + ")");
-                        Log.d("KTrader", "[TradeJobService] 매도 주문 건너뜀 - 코인 잔고 부족: " + availableCoinBalance + " (최소: " + coinSpecific.getMinimumTradingAmount() + ")");
+                    // 코인 잔고가 없는 경우 매도 주문 건너뜀
+                    if (availableCoinBalance <= 0 || availableCoinBalance < coinSpecific.getMinimumTradingAmount()) {
+                        LogInfoFormatter.logInfo("매도 주문 건너뜀 - 코인 잔고 없음: " + availableCoinBalance + " (최소: " + coinSpecific.getMinimumTradingAmount() + ")");
+                        Log.d("KTrader", "[TradeJobService] 매도 주문 건너뜀 - 코인 잔고 없음: " + availableCoinBalance + " (최소: " + coinSpecific.getMinimumTradingAmount() + ")");
                         continue; // 다음 매수 건으로 이동
                     }
 
-                    // 매수한 코인이 아직 체결되지 않은 경우와 보유 코인 부족을 구분하여 처리
-                    if (availableCoinBalance == 0.0 && unit > 0) {
-                        // 매수한 코인이 아직 체결되지 않은 경우: 매수한 수량으로 매도 주문 시도
-                        Log.d("KTrader", "[TradeJobService] 매수한 코인이 아직 체결되지 않음. 매수한 수량(" + unit + ")으로 매도 주문 시도");
-                        LogInfoFormatter.logInfo("매수한 코인이 아직 체결되지 않아 매수한 수량으로 매도 주문을 시도합니다: " + unit);
-                    } else if (unit > availableCoinBalance && availableCoinBalance > 0) {
-                        // 보유 코인이 부족한 경우: 보유 코인 수량으로 조정
+                    // 코인 잔고가 있는 경우에만 매도 주문 처리
+                    // 보유 코인이 부족한 경우: 보유 코인 수량으로 조정
+                    if (unit > availableCoinBalance) {
                         LogInfoFormatter.logInfo(LogInfoFormatter.formatSellCorrection2(unit, availableCoinBalance));
                         unit = (float)((int)(availableCoinBalance * 10000) / 10000.0);
                         Log.d("KTrader", "[TradeJobService] 매도 수량을 보유 잔고로 조정: " + unit);
@@ -632,12 +628,23 @@ public class TradeJobService extends Service {
 
                     // 매수된 내용이 있다면 가능한 상위 slot에 매도하도록 한다.
                     boolean isSold = false;
+                    
+                    // 매도 가격 계산 정보 로깅
+                    int baseProfit = MainPage.getProfitPrice(pData.getPrice());
+                    int sellIntervalPrice = MainPage.getSlotIntervalPrice(pData.getPrice());
+                    Log.d("KTrader", "[TradeJobService] 매도 가격 계산 정보:");
+                    Log.d("KTrader", "[TradeJobService] - 매수 가격: " + pData.getPrice());
+                    Log.d("KTrader", "[TradeJobService] - 기본 수익금: " + baseProfit);
+                    Log.d("KTrader", "[TradeJobService] - 슬롯 간격: " + sellIntervalPrice);
+                    Log.d("KTrader", "[TradeJobService] - 수익 목표율: " + GlobalSettings.getInstance().getEarningRate() + "%");
+                    
                     for (int i = 0; i< SELL_SLOT_LOOK_ASIDE_MAX; i++) {
                         // intervalPrice가 바뀌는 경계값일 때 문제를 해결하기 위해서 매도할 때의 interval은 현재가가 아니라 매수가를 기준으로 산정한다.
-                        int sellIntervalPrice = MainPage.getSlotIntervalPrice(pData.getPrice());
                         int targetPrice = pData.getPrice() + MainPage.getProfitPrice(pData.getPrice()) + (sellIntervalPrice * (SELL_SLOT_LOOK_ASIDE_MAX - 1 - i));
                         if ((pData.getPrice() % sellIntervalPrice) != 0)
                             targetPrice = (pData.getPrice() - (pData.getPrice() % sellIntervalPrice) + sellIntervalPrice) + MainPage.getProfitPrice(pData.getPrice()) + (sellIntervalPrice * (SELL_SLOT_LOOK_ASIDE_MAX - 1 - i));
+                        
+                        Log.d("KTrader", "[TradeJobService] 매도 슬롯 #" + i + " - 목표 가격: " + targetPrice);
 
                         TradeData oData = placedOrderManager.findByPrice(SELL, targetPrice);
                         // 런타임에 oData 값이 변경되므로 조건문은 정상적으로 동작함
