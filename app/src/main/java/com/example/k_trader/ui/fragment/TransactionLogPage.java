@@ -157,6 +157,9 @@ public class TransactionLogPage extends Fragment implements DatabaseMonitor.Data
         }
     }
 
+    // 마지막으로 추가된 로그 시간을 추적하는 변수
+    private long lastLogTimestamp = 0;
+    
     /**
      * 로그를 UI에 추가하는 메서드 (브로드캐스트 없이)
      */
@@ -164,9 +167,17 @@ public class TransactionLogPage extends Fragment implements DatabaseMonitor.Data
         if (editText != null && getActivity() != null) {
             getActivity().runOnUiThread(() -> {
                 try {
-                    // 현재 시간 추가
-                    String timestamp = java.text.SimpleDateFormat.getDateTimeInstance().format(new java.util.Date());
-                    String logWithTime = "[" + timestamp + "] " + log + "\n";
+                    long currentTime = System.currentTimeMillis();
+                    String logWithTime;
+                    
+                    // 처음 로그이거나 10초 이상 지난 경우에만 시간 표시
+                    if (lastLogTimestamp == 0 || (currentTime - lastLogTimestamp) > 10000) {
+                        String timestamp = java.text.SimpleDateFormat.getDateTimeInstance().format(new java.util.Date());
+                        logWithTime = timestamp + "\n" + log + "\n";
+                        lastLogTimestamp = currentTime;
+                    } else {
+                        logWithTime = log + "\n";
+                    }
                     
                     // 로그 추가
                     editText.append(logWithTime);

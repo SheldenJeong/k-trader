@@ -332,22 +332,8 @@ public class MainActivity extends AppCompatActivity {
                 String packageName = appInfo.packageName;
                 android.util.Log.d("KTrader", "[MainActivity] Checking package: " + packageName);
                 
-                if (packageName.toLowerCase().contains("Bithumb") || packageName.toLowerCase().contains("btc")) {
+                if (packageName.toLowerCase().contains("bithumb") || packageName.toLowerCase().contains("btc")) {
                     android.util.Log.d("KTrader", "[MainActivity] Found potential Bithumb app: " + packageName);
-                    
-                    // 특정 액티비티로 직접 실행 시도
-                    Intent specificIntent = new Intent();
-                    specificIntent.setComponent(new android.content.ComponentName(packageName, "com.btckorea.Bithumb.native_.presentation.MainNavigationActivity"));
-                    specificIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    
-                    try {
-                        startActivity(specificIntent);
-                        android.util.Log.d("KTrader", "[MainActivity] Launched Bithumb app with specific activity: " + packageName);
-                        Toast.makeText(this, "빗썸 앱을 실행합니다.", Toast.LENGTH_SHORT).show();
-                        return;
-                    } catch (Exception e) {
-                        android.util.Log.w("KTrader", "[MainActivity] Failed to launch specific activity for " + packageName + ": " + e.getMessage());
-                    }
                     
                     // 일반적인 앱 실행 시도
                     Intent launchIntent = getPackageManager().getLaunchIntentForPackage(packageName);
@@ -357,29 +343,10 @@ public class MainActivity extends AppCompatActivity {
                         Toast.makeText(this, "빗썸 앱을 실행합니다.", Toast.LENGTH_SHORT).show();
                         return;
                     }
-                }
-            }
-            
-            // 가능한 빗썸 앱 패키지명들
-            String[] possiblePackages = {
-                "com.btckorea.Bithumb",
-                "com.Bithumb.android",
-                "com.Bithumb",
-                "kr.co.Bithumb"
-            };
-            
-            // 각 패키지명을 시도해보기
-            for (String packageName : possiblePackages) {
-                android.util.Log.d("KTrader", "[MainActivity] Trying package: " + packageName);
-                
-                // 먼저 런치 인텐트가 있는지 확인
-                Intent launchIntent = getPackageManager().getLaunchIntentForPackage(packageName);
-                if (launchIntent != null) {
-                    android.util.Log.d("KTrader", "[MainActivity] Package found with launch intent: " + packageName);
                     
                     // 특정 액티비티로 직접 실행 시도
                     Intent specificIntent = new Intent();
-                    specificIntent.setComponent(new android.content.ComponentName(packageName, "com.btckorea.Bithumb.native_.presentation.MainNavigationActivity"));
+                    specificIntent.setComponent(new android.content.ComponentName(packageName, ".MainActivity"));
                     specificIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                     
                     try {
@@ -389,22 +356,62 @@ public class MainActivity extends AppCompatActivity {
                         return;
                     } catch (Exception e) {
                         android.util.Log.w("KTrader", "[MainActivity] Failed to launch specific activity for " + packageName + ": " + e.getMessage());
-                        
-                        // 특정 액티비티 실패 시 일반 런치 인텐트 사용
-                        android.util.Log.d("KTrader", "[MainActivity] Falling back to launch intent for: " + packageName);
+                    }
+                }
+            }
+            
+            // 가능한 빗썸 앱 패키지명들
+            String[] possiblePackages = {
+                "com.btckorea.bithumb"
+            };
+            
+            // 각 패키지명을 시도해보기
+            for (String packageName : possiblePackages) {
+                android.util.Log.d("KTrader", "[MainActivity] Trying package: " + packageName);
+                
+                // 패키지 설치 여부 확인
+                try {
+                    getPackageManager().getPackageInfo(packageName, 0);
+                    android.util.Log.d("KTrader", "[MainActivity] Package installed: " + packageName);
+                    
+                    // MAIN/LAUNCHER 인텐트로 직접 실행 시도
+                    Intent launchIntent = new Intent();
+                    launchIntent.setPackage(packageName);
+                    launchIntent.setAction(Intent.ACTION_MAIN);
+                    launchIntent.addCategory(Intent.CATEGORY_LAUNCHER);
+                    launchIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                    
+                    try {
                         startActivity(launchIntent);
+                        android.util.Log.d("KTrader", "[MainActivity] Launched Bithumb app with package: " + packageName);
                         Toast.makeText(this, "빗썸 앱을 실행합니다.", Toast.LENGTH_SHORT).show();
                         return;
+                    } catch (Exception e) {
+                        android.util.Log.w("KTrader", "[MainActivity] Failed to launch app with package: " + packageName + ", error: " + e.getMessage());
+                        
+                        // 특정 액티비티로 직접 실행 시도
+                        Intent specificIntent = new Intent();
+                        specificIntent.setComponent(new android.content.ComponentName(packageName, ".MainActivity"));
+                        specificIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        
+                        try {
+                            startActivity(specificIntent);
+                            android.util.Log.d("KTrader", "[MainActivity] Launched Bithumb app with specific activity: " + packageName);
+                            Toast.makeText(this, "빗썸 앱을 실행합니다.", Toast.LENGTH_SHORT).show();
+                            return;
+                        } catch (Exception e2) {
+                            android.util.Log.w("KTrader", "[MainActivity] Failed to launch specific activity for " + packageName + ": " + e2.getMessage());
+                        }
                     }
-                } else {
-                    android.util.Log.d("KTrader", "[MainActivity] No launch intent found for package: " + packageName);
+                } catch (android.content.pm.PackageManager.NameNotFoundException e) {
+                    android.util.Log.d("KTrader", "[MainActivity] Package not found: " + packageName);
                 }
             }
             
             // 모든 방법이 실패한 경우 Play Store로 이동
             android.util.Log.d("KTrader", "[MainActivity] All methods failed, redirecting to Play Store");
             Intent playStoreIntent = new Intent(Intent.ACTION_VIEW);
-            playStoreIntent.setData(android.net.Uri.parse("market://details?id=com.btckorea.Bithumb"));
+            playStoreIntent.setData(android.net.Uri.parse("market://details?id=com.btckorea.bithumb"));
             
             if (playStoreIntent.resolveActivity(getPackageManager()) != null) {
                 android.util.Log.d("KTrader", "[MainActivity] Opening Play Store app");
@@ -414,7 +421,7 @@ public class MainActivity extends AppCompatActivity {
                 // Play Store 앱이 없는 경우 웹 브라우저로 이동
                 android.util.Log.d("KTrader", "[MainActivity] Play Store app not found, opening web browser");
                 Intent webIntent = new Intent(Intent.ACTION_VIEW);
-                webIntent.setData(android.net.Uri.parse("https://play.google.com/store/apps/details?id=com.btckorea.Bithumb"));
+                webIntent.setData(android.net.Uri.parse("https://play.google.com/store/apps/details?id=com.btckorea.bithumb"));
                 startActivity(webIntent);
                 Toast.makeText(this, "빗썸 앱을 설치해주세요.", Toast.LENGTH_LONG).show();
             }
