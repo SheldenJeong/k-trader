@@ -24,7 +24,6 @@ import com.example.k_trader.R;
 import com.example.k_trader.ui.fragment.MainPage;
 import com.example.k_trader.ui.fragment.PlacedOrderPage;
 import com.example.k_trader.ui.fragment.ProcessedOrderPage;
-import com.example.k_trader.ui.fragment.TransactionStatusPage;
 import com.example.k_trader.ui.fragment.TransactionLogPage;
 import com.example.k_trader.base.GlobalSettings;
 import com.example.k_trader.database.OrderRepository;
@@ -38,7 +37,7 @@ import java.util.TimerTask;
 
 public class MainActivity extends AppCompatActivity {
 
-    int MAX_PAGE = 3;
+    int MAX_PAGE = 1; // MainPage만 사용, 내부 ViewPager에서 3개 페이지 관리
     Fragment cur_fragment = new Fragment();
     ViewPager viewPager;
     
@@ -107,8 +106,16 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onPageSelected(int i) {
-                if (i == 2)
-                    ProcessedOrderPage.getInstance().refresh();
+                // MainPage에 Page 변경 이벤트 전달
+                try {
+                    Fragment currentFragment = getSupportFragmentManager().findFragmentByTag("android:switcher:" + R.id.viewpager + ":" + i);
+                    if (currentFragment instanceof MainPage) {
+                        MainPage mainPage = (MainPage) currentFragment;
+                        mainPage.onPageSelected(i);
+                    }
+                } catch (Exception e) {
+                    android.util.Log.e("KTrader", "[MainActivity] Error handling page selection", e);
+                }
             }
 
             @Override
@@ -233,7 +240,7 @@ public class MainActivity extends AppCompatActivity {
             launchBithumbApp();
             return true;
         } else if (id == R.id.action_refresh) {
-            refreshCoinInfo();
+            refreshCurrentPage();
             return true;
         } else if (id == R.id.action_settings) {
             startActivity(new Intent(this, SettingActivity.class));
@@ -250,7 +257,34 @@ public class MainActivity extends AppCompatActivity {
     }
     
     /**
-     * 코인 정보 새로고침
+     * 현재 표시 중인 페이지를 새로고침
+     */
+    private void refreshCurrentPage() {
+        android.util.Log.d("KTrader", "[MainActivity] refreshCurrentPage() called");
+        try {
+            // ViewPager에서 현재 Fragment 가져오기
+            if (viewPager != null) {
+                int currentItem = viewPager.getCurrentItem();
+                android.util.Log.d("KTrader", "[MainActivity] Current tab: " + currentItem);
+                
+                // FragmentManager를 통해 현재 Fragment 가져오기
+                android.support.v4.app.FragmentManager fragmentManager = getSupportFragmentManager();
+                android.support.v4.app.Fragment currentFragment = fragmentManager.findFragmentByTag("android:switcher:" + R.id.viewpager + ":" + currentItem);
+                
+                if (currentFragment != null && currentFragment instanceof MainPage) {
+                    MainPage mainPage = (MainPage) currentFragment;
+                    mainPage.refreshCurrentPage();
+                    android.util.Log.d("KTrader", "[MainActivity] Refresh called on MainPage");
+                }
+            }
+        } catch (Exception e) {
+            android.util.Log.e("KTrader", "[MainActivity] Error in refreshCurrentPage()", e);
+            Toast.makeText(this, "새로고침 중 오류가 발생했습니다.", Toast.LENGTH_SHORT).show();
+        }
+    }
+    
+    /**
+     * 코인 정보 새로고침 (기존 메서드 유지)
      */
     private void refreshCoinInfo() {
         android.util.Log.d("KTrader", "[MainActivity] refreshCoinInfo() called");
@@ -467,17 +501,8 @@ public class MainActivity extends AppCompatActivity {
             if (position < 0 || MAX_PAGE <= position)
                 return null;
 
-            switch (position) {
-                case 0:
-                    cur_fragment = new MainPage();
-                    break;
-                case 1:
-                    cur_fragment = new PlacedOrderPage();
-                    break;
-                case 2:
-                    cur_fragment = ProcessedOrderPage.getInstance();
-                    break;
-            }
+            // MainPage만 반환 (내부에서 ViewPager로 관리)
+            cur_fragment = new MainPage();
             return cur_fragment;
         }
 
@@ -692,22 +717,11 @@ public class MainActivity extends AppCompatActivity {
                     android.util.Log.d("KTrader", "[MainActivity] Current fragment: " + currentFragment.getClass().getSimpleName());
                     
                     if (currentItem == 0) {
-                        // Transaction Item 탭
-                        if (currentFragment instanceof TransactionStatusPage) {
-                            TransactionStatusPage transactionItemFragment = (TransactionStatusPage) currentFragment;
-                            transactionItemFragment.scrollToBottom();
-                            android.util.Log.d("KTrader", "[MainActivity] Scrolled TransactionItemFragment to bottom");
-                        } else {
-                            android.util.Log.w("KTrader", "[MainActivity] Fragment is not TransactionItemFragment");
-                        }
-                    } else if (currentItem == 1) {
-                        // Transaction Log 탭
-                        if (currentFragment instanceof TransactionLogPage) {
-                            TransactionLogPage transactionLogFragment = (TransactionLogPage) currentFragment;
-                            transactionLogFragment.scrollToBottom();
-                            android.util.Log.d("KTrader", "[MainActivity] Scrolled TransactionLogFragment to bottom");
-                        } else {
-                            android.util.Log.w("KTrader", "[MainActivity] Fragment is not TransactionLogFragment");
+                        // Main Page - 내부 ViewPager에 이벤트 전달
+                        if (currentFragment instanceof MainPage) {
+                            MainPage mainPage = (MainPage) currentFragment;
+                            mainPage.scrollToBottomInPage();
+                            android.util.Log.d("KTrader", "[MainActivity] Triggered scroll in MainPage");
                         }
                     } else {
                         android.util.Log.w("KTrader", "[MainActivity] Unknown tab: " + currentItem);

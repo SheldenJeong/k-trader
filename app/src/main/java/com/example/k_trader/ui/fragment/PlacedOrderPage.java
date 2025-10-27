@@ -3,13 +3,11 @@ package com.example.k_trader.ui.fragment;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
-import android.content.Intent;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.constraint.ConstraintLayout;
 import android.support.v4.app.Fragment;
-import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.MenuInflater;
@@ -33,7 +31,6 @@ import com.example.k_trader.ui.adapter.ListviewAdapter;
 import com.example.k_trader.util.LogInfoFormatter;
 import com.example.k_trader.base.OrderManager;
 import com.example.k_trader.service.TradeJobService;
-import com.example.k_trader.KTraderApplication;
 import com.example.k_trader.base.GlobalSettings;
 import com.example.k_trader.base.TradeData;
 import com.example.k_trader.base.TradeDataManager;
@@ -68,8 +65,7 @@ public class PlacedOrderPage extends Fragment implements PopupMenu.OnMenuItemCli
     // ViewModel
     private OrderManagementViewModel orderManagementViewModel;
     private DIContainer diContainer;
-    Button btnRefresh;
-    Button btnBuyWithMarketPrice;
+     Button btnBuyWithMarketPrice;
     ListView listView;
     Spinner spinnerSort;
     PlacedOrderPage self;
@@ -103,8 +99,7 @@ public class PlacedOrderPage extends Fragment implements PopupMenu.OnMenuItemCli
 
         list = new ArrayList<>();
         mainActivity = (MainActivity) getActivity();
-        btnRefresh = layout.findViewById(R.id.refresh);
-        btnBuyWithMarketPrice = layout.findViewById(R.id.button4);
+        btnBuyWithMarketPrice = layout.findViewById(R.id.buy_button);
         spinnerSort = layout.findViewById(R.id.spinner);
 
         ArrayAdapter<String> sAdapter = new ArrayAdapter<String>(mainActivity.getApplicationContext(), R.layout.spinner_item, new String[] {BY_PRICE, BY_TIME});
@@ -127,111 +122,7 @@ public class PlacedOrderPage extends Fragment implements PopupMenu.OnMenuItemCli
             }
         });
 
-        btnRefresh.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-                list.clear();
-
-                ListviewAdapter adapter = new ListviewAdapter(mainActivity.getApplicationContext(), R.layout.list_item, list);
-                listView.setAdapter(adapter);
-
-                // NetworkOnMainThreadException을 방지하기 위해 thread를 돌린다.
-                new Thread(() -> {
-                    OrderManager orderManager = new OrderManager();
-                    placedOrderManager.clear();
-
-                    // 아직 체결 되지 않은 주문 상태인 항목들을 모두 가져온다.
-                    {
-                        JSONArray dataArray = null;
-                        try {
-                            dataArray = orderManager.getPlacedOrderList("");
-                        } catch (Exception e) {
-                            return;
-                        }
-
-                        for (int i = 0; i < dataArray.size(); i++) {
-                            JSONObject item = (JSONObject) dataArray.get(i);
-                            String id = (String) item.get("order_id");
-                            placedOrderManager.add(placedOrderManager.build()
-                                    .setType(orderManager.convertOrderType((String) item.get("type")))
-                                    .setStatus(PLACED)
-                                    .setId(id)
-                                    .setUnits((float) Double.parseDouble((String) item.get("units_remaining")))
-                                    .setPrice(Integer.parseInt(((String) item.get("price")).replaceAll(",", "")))
-                                    .setPlacedTime(Long.parseLong((String) item.get("order_date")) / 1000));
-                        }
-                    }
-
-                    int sellIndex = placedOrderManager.getSellCount();
-
-                    for (TradeData data : placedOrderManager.getList()) {
-                        String text;
-                        Calendar cal = Calendar.getInstance();
-                        cal.setTimeInMillis(data.getPlacedTime());
-                        text = data.getType().toString()
-                                + (data.getType() == SELL ? (" (" + sellIndex-- + ") : ") : " : ")   // 남아 있는 Sell count를 쉽게 알 수 있게 보여준다.
-                                + String.format(Locale.getDefault(), "%.4f", data.getUnits())
-                                + " : "
-                                + String.format(Locale.getDefault(), "%,d", data.getPrice())
-                                + " : "
-                                + String.format(Locale.getDefault(), "%02d/%02d %02d:%02d:%02d"
-                                        , cal.get(Calendar.MONTH) + 1, cal.get(Calendar.DATE)
-                                        , cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE), cal.get(Calendar.SECOND));
-
-                        Listviewitem listItem = new Listviewitem(0, text);
-                        float baseUnits = (float) ((int) ((GlobalSettings.getInstance().getUnitPrice() / (double)data.getPrice()) * 10000) / 10000.0);
-
-                        // merge가 필요하거나 down이 필요한 item은 다른 색깔로 보여준다.
-                        if (data.getUnits() < (baseUnits / 2.0) || data.getUnits() > (baseUnits * 1.5) || placedOrderManager.getByPrice(SELL, data.getPrice()).size() > 1)
-                            listItem.setBgColor(-2044724);
-                        else if (data.getPrice() > (TradeJobService.currentPrice * 2 - 1000000)) {
-                            // down 할 수 없는 가격대는 좀 더 진한 색으로 보여준다.
-                            listItem.setBgColor(-21846);
-                        } else
-                            listItem.setBgColor(Color.LTGRAY);
-                        listItem.setTradeData(data);
-                        list.add(listItem);
-                        Log.d("KTrader", text);
-                    }
-
-                    Runnable runnable = new Runnable() {
-                        public void run() {
-                            mainActivity.runOnUiThread(new Runnable() {
-                                public void run() {
-                                    ListviewAdapter adapter1 = new ListviewAdapter(mainActivity.getApplicationContext(), R.layout.list_item, list);
-                                    listView.setAdapter(adapter1);
-
-                                    // sort by 적용
-                                    if (sortBy.equals(BY_PRICE)) {
-                                        Comparator<Listviewitem> noAsc = new Comparator<Listviewitem>() {
-                                            @Override
-                                            public int compare(Listviewitem item1, Listviewitem item2) {
-                                                // 오름 차순 정렬
-                                                return (item1.getData().getPrice() - item2.getData().getPrice());
-                                            }
-                                        };
-
-                                        Collections.sort(list, noAsc);
-                                        adapter1.notifyDataSetChanged();
-                                    } else if (sortBy.equals(BY_TIME)) {
-                                        Comparator<Listviewitem> noAsc = new Comparator<Listviewitem>() {
-                                            @Override
-                                            public int compare(Listviewitem item1, Listviewitem item2) {
-                                                // 오름 차순 정렬
-                                                return (int)(item1.getData().getPlacedTime() - item2.getData().getPlacedTime());
-                                            }
-                                        };
-
-                                        Collections.sort(list, noAsc) ;
-                                        adapter1.notifyDataSetChanged() ;
-                                    }
-                                }
-                            });
-                        }
-                    };
-                    runnable.run();
-                }).start();
-            }
-        });
+        // refresh 버튼 제거됨 - AppBar의 refresh로 대체
 
         btnBuyWithMarketPrice.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
@@ -250,6 +141,119 @@ public class PlacedOrderPage extends Fragment implements PopupMenu.OnMenuItemCli
         });
 
         return layout;
+    }
+    
+    /**
+     * 주문 목록을 새로고침하는 public 메서드
+     */
+    public void refresh() {
+        Log.d("KTrader", "[PlacedOrderPage] refresh() called");
+        if (mainActivity == null || listView == null) {
+            Log.w("KTrader", "[PlacedOrderPage] Context is null, cannot refresh");
+            return;
+        }
+        
+        list.clear();
+
+        ListviewAdapter adapter = new ListviewAdapter(mainActivity.getApplicationContext(), R.layout.list_item, list);
+        listView.setAdapter(adapter);
+
+        // NetworkOnMainThreadException을 방지하기 위해 thread를 돌린다.
+        new Thread(() -> {
+            OrderManager orderManager = new OrderManager();
+            placedOrderManager.clear();
+
+            // 아직 체결 되지 않은 주문 상태인 항목들을 모두 가져온다.
+            {
+                JSONArray dataArray = null;
+                try {
+                    dataArray = orderManager.getPlacedOrderList("");
+                } catch (Exception e) {
+                    return;
+                }
+
+                for (int i = 0; i < dataArray.size(); i++) {
+                    JSONObject item = (JSONObject) dataArray.get(i);
+                    String id = (String) item.get("order_id");
+                    placedOrderManager.add(placedOrderManager.build()
+                            .setType(orderManager.convertOrderType((String) item.get("type")))
+                            .setStatus(PLACED)
+                            .setId(id)
+                            .setUnits((float) Double.parseDouble((String) item.get("units_remaining")))
+                            .setPrice(Integer.parseInt(((String) item.get("price")).replaceAll(",", "")))
+                            .setPlacedTime(Long.parseLong((String) item.get("order_date")) / 1000));
+                }
+            }
+
+            int sellIndex = placedOrderManager.getSellCount();
+
+            for (TradeData data : placedOrderManager.getList()) {
+                String text;
+                Calendar cal = Calendar.getInstance();
+                cal.setTimeInMillis(data.getPlacedTime());
+                text = data.getType().toString()
+                        + (data.getType() == SELL ? (" (" + sellIndex-- + ") : ") : " : ")   // 남아 있는 Sell count를 쉽게 알 수 있게 보여준다.
+                        + String.format(Locale.getDefault(), "%.4f", data.getUnits())
+                        + " : "
+                        + String.format(Locale.getDefault(), "%,d", data.getPrice())
+                        + " : "
+                        + String.format(Locale.getDefault(), "%02d/%02d %02d:%02d:%02d"
+                                , cal.get(Calendar.MONTH) + 1, cal.get(Calendar.DATE)
+                                , cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE), cal.get(Calendar.SECOND));
+
+                Listviewitem listItem = new Listviewitem(0, text);
+                float baseUnits = (float) ((int) ((GlobalSettings.getInstance().getUnitPrice() / (double)data.getPrice()) * 10000) / 10000.0);
+
+                // merge가 필요하거나 down이 필요한 item은 다른 색깔로 보여준다.
+                if (data.getUnits() < (baseUnits / 2.0) || data.getUnits() > (baseUnits * 1.5) || placedOrderManager.getByPrice(SELL, data.getPrice()).size() > 1)
+                    listItem.setBgColor(-2044724);
+                else if (data.getPrice() > (TradeJobService.currentPrice * 2 - 1000000)) {
+                    // down 할 수 없는 가격대는 좀 더 진한 색으로 보여준다.
+                    listItem.setBgColor(-21846);
+                } else
+                    listItem.setBgColor(Color.LTGRAY);
+                listItem.setTradeData(data);
+                list.add(listItem);
+                Log.d("KTrader", text);
+            }
+
+            Runnable runnable = new Runnable() {
+                public void run() {
+                    mainActivity.runOnUiThread(new Runnable() {
+                        public void run() {
+                            ListviewAdapter adapter1 = new ListviewAdapter(mainActivity.getApplicationContext(), R.layout.list_item, list);
+                            listView.setAdapter(adapter1);
+
+                            // sort by 적용
+                            if (sortBy.equals(BY_PRICE)) {
+                                Comparator<Listviewitem> noAsc = new Comparator<Listviewitem>() {
+                                    @Override
+                                    public int compare(Listviewitem item1, Listviewitem item2) {
+                                        // 오름 차순 정렬
+                                        return (item1.getData().getPrice() - item2.getData().getPrice());
+                                    }
+                                };
+
+                                Collections.sort(list, noAsc);
+                                adapter1.notifyDataSetChanged();
+                            } else if (sortBy.equals(BY_TIME)) {
+                                Comparator<Listviewitem> noAsc = new Comparator<Listviewitem>() {
+                                    @Override
+                                    public int compare(Listviewitem item1, Listviewitem item2) {
+                                        // 오름 차순 정렬
+                                        return (int)(item1.getData().getPlacedTime() - item2.getData().getPlacedTime());
+                                    }
+                                };
+
+                                Collections.sort(list, noAsc) ;
+                                adapter1.notifyDataSetChanged() ;
+                            }
+                        }
+                    });
+                }
+            };
+            runnable.run();
+        }).start();
     }
 
     private void onSellItemClick(int position) {

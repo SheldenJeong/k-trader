@@ -71,7 +71,8 @@ public class MainPage extends Fragment {
     private boolean isTradingStarted = false;
     private DatabaseOrderManager databaseOrderManager;
     private CompositeDisposable disposables;
-    private TransactionStatusPage transactionStatusPage;
+    private PlacedOrderPage placedOrderPage;
+    private ProcessedOrderPage processedOrderPage;
     private TransactionLogPage transactionLogPage;
     
     // UI 상태 캐시 (static으로 변경하여 Fragment 재생성 시에도 유지)
@@ -324,8 +325,56 @@ public class MainPage extends Fragment {
         // TabLayout과 ViewPager 연결
         tabLayout.setupWithViewPager(viewPager);
         
-        // 기본 탭을 Transaction Item으로 설정 (첫 번째 탭)
+        // 기본 탭을 첫 번째 탭으로 설정
         viewPager.setCurrentItem(0);
+    }
+    
+    /**
+     * MainActivity에서 페이지 선택 이벤트를 받는 메서드
+     */
+    public void onPageSelected(int position) {
+        // 내부 ViewPager의 페이지 변경 처리
+        Log.d("KTrader", "[MainPage] onPageSelected: " + position);
+    }
+    
+    /**
+     * 스크롤을 하단으로 이동하는 메서드
+     */
+    /**
+     * 현재 표시 중인 페이지를 새로고침
+     */
+    public void refreshCurrentPage() {
+        if (viewPager != null) {
+            int currentItem = viewPager.getCurrentItem();
+            Log.d("KTrader", "[MainPage] refreshCurrentPage called, current item: " + currentItem);
+            
+            // 현재 페이지에 따라 refresh 호출
+            if (currentItem == 0 && placedOrderPage != null) {
+                placedOrderPage.refresh();
+            } else if (currentItem == 1 && processedOrderPage != null) {
+                processedOrderPage.refresh();
+            } else if (currentItem == 2 && transactionLogPage != null) {
+                // TransactionLogPage는 refresh 메서드가 없을 수 있음
+                Log.d("KTrader", "[MainPage] TransactionLogPage detected");
+            }
+        }
+    }
+    
+    public void scrollToBottomInPage() {
+        if (viewPager != null) {
+            int currentItem = viewPager.getCurrentItem();
+            Log.d("KTrader", "[MainPage] scrollToBottomInPage called, current item: " + currentItem);
+            
+            // 현재 페이지에 따라 처리
+            if (currentItem == 0 && placedOrderPage != null) {
+                // PlacedOrderPage는 별도 refresh 메서드가 없으므로 skip
+                Log.d("KTrader", "[MainPage] PlacedOrderPage detected");
+            } else if (currentItem == 1 && processedOrderPage != null) {
+                processedOrderPage.refresh();
+            } else if (currentItem == 2 && transactionLogPage != null) {
+                transactionLogPage.scrollToBottom();
+            }
+        }
     }
 
     /**
@@ -509,31 +558,36 @@ public class MainPage extends Fragment {
         public Fragment getItem(int position) {
             switch (position) {
                 case 0:
-                    transactionStatusPage = new TransactionStatusPage();
-                    return transactionStatusPage;
+                    placedOrderPage = new PlacedOrderPage();
+                    return placedOrderPage;
                 case 1:
+                    processedOrderPage = ProcessedOrderPage.getInstance();
+                    return processedOrderPage;
+                case 2:
                     transactionLogPage = new TransactionLogPage();
                     return transactionLogPage;
                 default:
-                    transactionStatusPage = new TransactionStatusPage();
-                    return transactionStatusPage;
+                    placedOrderPage = new PlacedOrderPage();
+                    return placedOrderPage;
             }
         }
 
         @Override
         public int getCount() {
-            return 2;
+            return 3;
         }
 
         @Override
         public CharSequence getPageTitle(int position) {
             switch (position) {
                 case 0:
-                    return getString(R.string.transaction_item);
+                    return "대기 주문";
                 case 1:
+                    return "처리 완료";
+                case 2:
                     return getString(R.string.transaction_log);
                 default:
-                    return getString(R.string.transaction_item);
+                    return "대기 주문";
             }
         }
     }
