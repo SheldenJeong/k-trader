@@ -152,16 +152,19 @@ public class PlacedOrderPage extends Fragment implements PopupMenu.OnMenuItemCli
             Log.w("KTrader", "[PlacedOrderPage] Context is null, cannot refresh");
             return;
         }
-        
-        list.clear();
 
-        ListviewAdapter adapter = new ListviewAdapter(mainActivity.getApplicationContext(), R.layout.list_item, list);
-        listView.setAdapter(adapter);
+        // ❌ 깜박임 원인 제거: list.clear()를 제거하고 새로운 리스트를 백그라운드에서 준비
+        // list.clear();  // 이 줄 제거
+        // ListviewAdapter adapter = new ListviewAdapter(mainActivity.getApplicationContext(), R.layout.list_item, list);
+        // listView.setAdapter(adapter);  // 이 줄도 제거
 
         // NetworkOnMainThreadException을 방지하기 위해 thread를 돌린다.
         new Thread(() -> {
             OrderManager orderManager = new OrderManager();
             placedOrderManager.clear();
+
+            // 새로운 데이터를 담을 임시 리스트 생성
+            ArrayList<Listviewitem> newList = new ArrayList<>();
 
             // 아직 체결 되지 않은 주문 상태인 항목들을 모두 가져온다.
             {
@@ -192,14 +195,14 @@ public class PlacedOrderPage extends Fragment implements PopupMenu.OnMenuItemCli
                 Calendar cal = Calendar.getInstance();
                 cal.setTimeInMillis(data.getPlacedTime());
                 text = data.getType().toString()
-                        + (data.getType() == SELL ? (" (" + sellIndex-- + ") : ") : " : ")   // 남아 있는 Sell count를 쉽게 알 수 있게 보여준다.
+                        + (data.getType() == SELL ? (" (" + sellIndex-- + ") : ") : " : ")
                         + String.format(Locale.getDefault(), "%.4f", data.getUnits())
                         + " : "
                         + String.format(Locale.getDefault(), "%,d", data.getPrice())
                         + " : "
                         + String.format(Locale.getDefault(), "%02d/%02d %02d:%02d:%02d"
-                                , cal.get(Calendar.MONTH) + 1, cal.get(Calendar.DATE)
-                                , cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE), cal.get(Calendar.SECOND));
+                        , cal.get(Calendar.MONTH) + 1, cal.get(Calendar.DATE)
+                        , cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE), cal.get(Calendar.SECOND));
 
                 Listviewitem listItem = new Listviewitem(0, text);
                 float baseUnits = (float) ((int) ((GlobalSettings.getInstance().getUnitPrice() / (double)data.getPrice()) * 10000) / 10000.0);
@@ -213,7 +216,7 @@ public class PlacedOrderPage extends Fragment implements PopupMenu.OnMenuItemCli
                 } else
                     listItem.setBgColor(Color.LTGRAY);
                 listItem.setTradeData(data);
-                list.add(listItem);
+                newList.add(listItem);  // list 대신 newList에 추가
                 Log.d("KTrader", text);
             }
 
@@ -221,6 +224,9 @@ public class PlacedOrderPage extends Fragment implements PopupMenu.OnMenuItemCli
                 public void run() {
                     mainActivity.runOnUiThread(new Runnable() {
                         public void run() {
+                            // ⭐ 한 번에 새 데이터로 교체
+                            list.clear();
+                            list.addAll(newList);
                             ListviewAdapter adapter1 = new ListviewAdapter(mainActivity.getApplicationContext(), R.layout.list_item, list);
                             listView.setAdapter(adapter1);
 
@@ -245,8 +251,8 @@ public class PlacedOrderPage extends Fragment implements PopupMenu.OnMenuItemCli
                                     }
                                 };
 
-                                Collections.sort(list, noAsc) ;
-                                adapter1.notifyDataSetChanged() ;
+                                Collections.sort(list, noAsc);
+                                adapter1.notifyDataSetChanged();
                             }
                         }
                     });

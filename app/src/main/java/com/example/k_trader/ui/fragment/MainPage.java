@@ -344,20 +344,41 @@ public class MainPage extends Fragment {
      * 현재 표시 중인 페이지를 새로고침
      */
     public void refreshCurrentPage() {
-        if (viewPager != null) {
-            int currentItem = viewPager.getCurrentItem();
-            Log.d("KTrader", "[MainPage] refreshCurrentPage called, current item: " + currentItem);
-            
-            // 현재 페이지에 따라 refresh 호출
-            if (currentItem == 0 && placedOrderPage != null) {
-                placedOrderPage.refresh();
-            } else if (currentItem == 1 && processedOrderPage != null) {
-                processedOrderPage.refresh();
-            } else if (currentItem == 2 && transactionLogPage != null) {
-                // TransactionLogPage는 refresh 메서드가 없을 수 있음
-                Log.d("KTrader", "[MainPage] TransactionLogPage detected");
+        Log.d("KTrader", "[MainPage] refreshCurrentPage called - refreshing all components");
+
+        // 1. CoinInfo 새로고침
+        refreshCoinData();
+        Log.d("KTrader", "[MainPage] CoinInfo refresh called");
+
+        // 2. Transaction Card 정보 직접 업데이트를 위한 API 호출
+        fetchCurrentPriceFromApi();
+        Log.d("KTrader", "[MainPage] Transaction card API call initiated");
+
+        // 3. 모든 하위 페이지 새로고침 (현재 선택된 탭과 관계없이)
+        if (placedOrderPage != null) {
+            placedOrderPage.refresh();
+            Log.d("KTrader", "[MainPage] PlacedOrderPage refresh called");
+        }
+
+        if (processedOrderPage != null) {
+            processedOrderPage.refresh();
+            Log.d("KTrader", "[MainPage] ProcessedOrderPage refresh called");
+        }
+
+        if (transactionLogPage != null) {
+            // TransactionLogPage에 refresh 메서드가 있는지 확인 필요
+            try {
+                java.lang.reflect.Method refreshMethod = transactionLogPage.getClass().getMethod("refresh");
+                if (refreshMethod != null) {
+                    refreshMethod.invoke(transactionLogPage);
+                    Log.d("KTrader", "[MainPage] TransactionLogPage refresh called");
+                }
+            } catch (Exception e) {
+                Log.w("KTrader", "[MainPage] TransactionLogPage has no refresh method", e);
             }
         }
+
+        Log.d("KTrader", "[MainPage] All components refreshed");
     }
     
     public void scrollToBottomInPage() {
