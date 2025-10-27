@@ -4,4 +4,7 @@
     <color name="status_bar_dark">#000000</color>
     <color name="notification_dark">#000000</color>
     <color name="app_bar_dark">#000000</color>
+    
+    <!-- ListView divider 색상 (Dark theme) -->
+    <color name="list_divider_light">#424242</color>
 </resources>

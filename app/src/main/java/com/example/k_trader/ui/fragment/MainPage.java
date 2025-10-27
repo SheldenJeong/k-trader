@@ -550,24 +550,44 @@ public class MainPage extends Fragment {
      */
     public class TransactionPagerAdapter extends FragmentPagerAdapter {
         
+        private Fragment[] fragments = new Fragment[3];
+        
         public TransactionPagerAdapter(FragmentManager fm) {
             super(fm);
         }
 
         @Override
         public Fragment getItem(int position) {
+            // 이미 생성된 Fragment가 있으면 재사용
+            if (fragments[position] != null) {
+                return fragments[position];
+            }
+            
+            // Fragment 생성 및 캐싱
             switch (position) {
                 case 0:
-                    placedOrderPage = new PlacedOrderPage();
+                    if (placedOrderPage == null) {
+                        placedOrderPage = new PlacedOrderPage();
+                        fragments[position] = placedOrderPage;
+                    }
                     return placedOrderPage;
                 case 1:
-                    processedOrderPage = ProcessedOrderPage.getInstance();
+                    if (processedOrderPage == null) {
+                        processedOrderPage = ProcessedOrderPage.getInstance();
+                        fragments[position] = processedOrderPage;
+                    }
                     return processedOrderPage;
                 case 2:
-                    transactionLogPage = new TransactionLogPage();
+                    if (transactionLogPage == null) {
+                        transactionLogPage = new TransactionLogPage();
+                        fragments[position] = transactionLogPage;
+                    }
                     return transactionLogPage;
                 default:
-                    placedOrderPage = new PlacedOrderPage();
+                    if (placedOrderPage == null) {
+                        placedOrderPage = new PlacedOrderPage();
+                        fragments[0] = placedOrderPage;
+                    }
                     return placedOrderPage;
             }
         }
@@ -595,7 +615,7 @@ public class MainPage extends Fragment {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        
+
         // RxJava 리소스 정리
         stopReactiveObservations();
         
@@ -608,7 +628,6 @@ public class MainPage extends Fragment {
         if (cardDataReceiver != null && getContext() != null) {
             android.support.v4.content.LocalBroadcastManager.getInstance(getContext()).unregisterReceiver(cardDataReceiver);
         }
-
     }
     
     /**
@@ -618,6 +637,12 @@ public class MainPage extends Fragment {
         cardDataReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
+                // Fragment가 컨텍스트에 연결되어 있는지 확인
+                if (!isAdded() || getContext() == null) {
+                    Log.w("KTrader", "[MainPage] BroadcastReceiver received but Fragment is not attached to context");
+                    return;
+                }
+                
                 Log.d("KTrader", "[MainPage] BroadcastReceiver received: " + intent.getAction());
                 
                 // BROADCAST_CARD_DATA, BROADCAST_TRANSACTION_DATA만 처리
