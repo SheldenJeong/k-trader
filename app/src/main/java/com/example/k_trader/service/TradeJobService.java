@@ -867,8 +867,9 @@ public class TradeJobService extends Service {
                     continue; // 다음 슬롯으로 이동
                 }
 
-                // 체결 되기 어려운 낮은 가격 order는 모두 취소한다.
+                // 체결 되기 어려운 낮은 가격 order는 모두 취소하고 현재 가격으로 재매수한다.
                 Log.d("KTrader", "[TradeJobService] 기존 매수 주문 취소 시작");
+                boolean hasCancelledOrder = false;
                 for (TradeData tmp : placedOrderManager.getList()) {
                     if (tmp.getType() == BUY) {  // 1000만원 단위 경계에서 buy price가 미세하게 차이나서 data가 null이 되어 들어올 수 있으므로 전체 buy를 취소한다.
                         // Order ID 유효성 검사
@@ -883,8 +884,31 @@ public class TradeJobService extends Service {
                             return;
                         } else {
                             Log.d("KTrader", "[TradeJobService] 기존 매수 주문 취소 성공 - Order ID: " + tmp.getId());
+                            hasCancelledOrder = true;
                         }
                     }
+                }
+                
+                // 낮은 가격 주문이 취소된 경우 현재 가격으로 재매수
+                if (hasCancelledOrder && currentPrice > 0) {
+                    Log.d("KTrader", "[TradeJobService] 현재 가격으로 재매수 시도 - 현재 가격: " + currentPrice);
+                    double currentPriceUnitAmount = getUnitAmount4Price(currentPrice);
+                    double currentPriceRequiredAmount = currentPriceUnitAmount * currentPrice;
+                    
+                    // 잔고 확인
+                    if (krwBalance >= currentPriceRequiredAmount) {
+                        JSONObject buyResult = orderManager.addOrder("현재가 즉시매수", BUY, currentPriceUnitAmount, currentPrice);
+                        if (buyResult == null) {
+                            Log.e("KTrader", "[TradeJobService] 현재가 매수 주문 발행 실패 - API 응답이 null");
+                        } else if (!"0000".equals(buyResult.get("status"))) {
+                            Log.e("KTrader", "[TradeJobService] 현재가 매수 주문 발행 실패 - 상태: " + buyResult.get("status") + ", 메시지: " + buyResult.get("message"));
+                        } else {
+                            Log.d("KTrader", "[TradeJobService] 현재가 매수 주문 발행 성공: " + buyResult.toString());
+                        }
+                    } else {
+                        Log.w("KTrader", "[TradeJobService] 현재가 매수 주문 실패 - 잔고 부족 (필요: " + currentPriceRequiredAmount + ", 보유: " + krwBalance + ")");
+                    }
+                    break;
                 }
 
                 // add buy request for target price
