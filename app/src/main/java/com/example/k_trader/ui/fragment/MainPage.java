@@ -103,7 +103,8 @@ public class MainPage extends Fragment {
         @Override
         public void run() {
             refreshCurrentPage();
-            handler.postDelayed(this, 5000); // 5초마다 반복
+            int AUTO_REFRESH_PERIOD = 7000;
+            handler.postDelayed(this, AUTO_REFRESH_PERIOD); // 5초마다 반복
         }
     };
 
