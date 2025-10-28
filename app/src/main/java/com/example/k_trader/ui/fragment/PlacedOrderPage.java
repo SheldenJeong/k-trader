@@ -107,6 +107,7 @@ public class PlacedOrderPage extends Fragment implements PopupMenu.OnMenuItemCli
         spinnerSort.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             public void onItemSelected(AdapterView<?>  parent, View view, int position, long id) {
                 sortBy = sAdapter.getItem(position);
+                refresh();
             }
             public void onNothingSelected(AdapterView<?>  parent) {
             }

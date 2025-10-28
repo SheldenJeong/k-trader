@@ -89,6 +89,7 @@ public class ProcessedOrderPage extends Fragment {
         spinnerRange.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             public void onItemSelected(AdapterView<?>  parent, View view, int position, long id) {
                 rangeDays = Integer.parseInt(sAdapter.getItem(position).replace("일", ""));
+                refresh();
             }
             public void onNothingSelected(AdapterView<?>  parent) {
             }

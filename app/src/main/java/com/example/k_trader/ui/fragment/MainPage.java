@@ -5,6 +5,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.PowerManager;
 import android.provider.Settings;
 import android.support.annotation.NonNull;
@@ -13,6 +15,7 @@ import android.support.design.widget.TabLayout;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentPagerAdapter;
+import android.support.v4.content.LocalBroadcastManager;
 import android.support.v4.view.ViewPager;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -23,6 +26,8 @@ import android.widget.Toast;
 
 import com.example.k_trader.R;
 import com.example.k_trader.base.TradeData;
+import com.example.k_trader.database.CoinPriceInfoRepository;
+import com.example.k_trader.database.TransactionInfoRepository;
 import com.example.k_trader.database.entities.TransactionInfoEntity;
 import com.example.k_trader.ui.activity.MainActivity;
 import com.example.k_trader.service.TradeJobService;
@@ -47,10 +52,6 @@ import org.json.simple.JSONObject;
 public class MainPage extends Fragment {
 
     private static final String KEY_TRADING_STATE = "KEY_TRADING_STATE";
-    public static final int TYPE_TRANSACTION = 0;
-    public static final int TYPE_ERROR = 1;
-    public static final int TYPE_ORDER = 2;
-
     public static final String BROADCAST_CARD_DATA = "TRADE_CARD_DATA";
     public static final String BROADCAST_ERROR_CARD = "TRADE_ERROR_CARD";
     public static final String BROADCAST_TRANSACTION_DATA = "com.example.k_trader.TRANSACTION_DATA_UPDATED";
@@ -94,8 +95,17 @@ public class MainPage extends Fragment {
     private BroadcastReceiver cardDataReceiver;
     
     // 실시간 관찰을 위한 필드들
-    private com.example.k_trader.database.CoinPriceInfoRepository coinPriceInfoRepository;
-    private com.example.k_trader.database.TransactionInfoRepository transactionInfoRepository;
+    private CoinPriceInfoRepository coinPriceInfoRepository;
+    private TransactionInfoRepository transactionInfoRepository;
+
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private final Runnable refreshRunnable = new Runnable() {
+        @Override
+        public void run() {
+            refreshCurrentPage();
+            handler.postDelayed(this, 5000); // 5초마다 반복
+        }
+    };
 
     @Override
     public void onCreate(Bundle savedInstanceState) {super.onCreate(savedInstanceState);}
@@ -220,14 +230,12 @@ public class MainPage extends Fragment {
                         // 현재 가격 복원
                         if (coinPriceInfo.getCurrentPrice() != null && textCurrentPrice != null) {
                             textCurrentPrice.setText(coinPriceInfo.getCurrentPrice());
-                            cachedCurrentPrice = coinPriceInfo.getCurrentPrice();
                             Log.d("KTrader", "[MainPage] 현재 가격 복원: " + coinPriceInfo.getCurrentPrice());
                         }
                         
                         // 가격 변동률 복원
                         if (coinPriceInfo.getPriceChange() != null && textPriceChange != null) {
                             textPriceChange.setText(coinPriceInfo.getPriceChange());
-                            cachedPriceChange = coinPriceInfo.getPriceChange();
                             Log.d("KTrader", "[MainPage] 가격 변동률 복원: " + coinPriceInfo.getPriceChange());
                         }
                         
@@ -437,7 +445,7 @@ public class MainPage extends Fragment {
             }
         }).start();
     }
-    
+
     public void scrollToBottomInPage() {
         if (viewPager != null) {
             int currentItem = viewPager.getCurrentItem();
@@ -557,6 +565,13 @@ public class MainPage extends Fragment {
         // SettingsActivity에서 돌아올 때 코인 정보 업데이트
         Log.d("KTrader", "[MainPage] onResume - updating coin info");
         updateCoinInfo();
+        handler.post(refreshRunnable); // 주기적 업데이트 시작
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        handler.removeCallbacks(refreshRunnable);
     }
 
     @Override
@@ -869,8 +884,6 @@ public class MainPage extends Fragment {
                     if (transactionTime != null || lastBuyPrice != null || lastSellPrice != null || nextBuyPrice != null) {
                         if (getActivity() != null) {
                             getActivity().runOnUiThread(() -> updateTransactionCardMeta(transactionTime, lastBuyPrice, lastSellPrice, nextBuyPrice));
-                        } else {
-                            updateTransactionCardMeta(transactionTime, lastBuyPrice, lastSellPrice, nextBuyPrice);
                         }
                     }
                     
@@ -896,7 +909,7 @@ public class MainPage extends Fragment {
             android.content.IntentFilter filter = new android.content.IntentFilter();
             filter.addAction(BROADCAST_CARD_DATA);
             filter.addAction(BROADCAST_TRANSACTION_DATA);
-            android.support.v4.content.LocalBroadcastManager.getInstance(getContext()).registerReceiver(cardDataReceiver, filter);
+            LocalBroadcastManager.getInstance(getContext()).registerReceiver(cardDataReceiver, filter);
             Log.d("KTrader", "[MainPage] BroadcastReceiver registered for both actions");
         }
     }
