@@ -355,27 +355,25 @@ public class MainPage extends Fragment {
         Log.d("KTrader", "[MainPage] Transaction card API call initiated");
 
         // 3. 모든 하위 페이지 새로고침 (현재 선택된 탭과 관계없이)
-        if (placedOrderPage != null) {
-            placedOrderPage.refresh();
-            Log.d("KTrader", "[MainPage] PlacedOrderPage refresh called");
+
+        String tag0 = "android:switcher:" + viewPager.getId() + ":" + 0;
+        Fragment placedFrag = getChildFragmentManager().findFragmentByTag(tag0);
+
+        if (placedFrag instanceof PlacedOrderPage) {
+            ((PlacedOrderPage) placedFrag).refresh();
+            Log.d("KTrader", "[MainPage] PlacedOrderPage refresh called (via " + (placedOrderPage != null ? "field" : "tag") + ")");
+        } else {
+            Log.w("KTrader", "[MainPage] PlacedOrderPage instance not found for refresh");
         }
 
-        if (processedOrderPage != null) {
-            processedOrderPage.refresh();
-            Log.d("KTrader", "[MainPage] ProcessedOrderPage refresh called");
-        }
+        String tag1 = "android:switcher:" + viewPager.getId() + ":" + 1;
+        Fragment processedFrag = getChildFragmentManager().findFragmentByTag(tag1);
 
-        if (transactionLogPage != null) {
-            // TransactionLogPage에 refresh 메서드가 있는지 확인 필요
-            try {
-                java.lang.reflect.Method refreshMethod = transactionLogPage.getClass().getMethod("refresh");
-                if (refreshMethod != null) {
-                    refreshMethod.invoke(transactionLogPage);
-                    Log.d("KTrader", "[MainPage] TransactionLogPage refresh called");
-                }
-            } catch (Exception e) {
-                Log.w("KTrader", "[MainPage] TransactionLogPage has no refresh method", e);
-            }
+        if (processedFrag instanceof ProcessedOrderPage) {
+            ((ProcessedOrderPage) processedFrag).refresh();
+            Log.d("KTrader", "[MainPage] ProcessedOrderPage refresh called (via " + (processedOrderPage != null ? "field" : "tag") + ")");
+        } else {
+            Log.w("KTrader", "[MainPage] ProcessedOrderPage instance not found for refresh");
         }
 
         Log.d("KTrader", "[MainPage] All components refreshed");
