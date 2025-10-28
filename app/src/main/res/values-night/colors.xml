@@ -7,4 +7,10 @@
     
     <!-- ListView divider 색상 (Dark theme) -->
     <color name="list_divider_light">#424242</color>
+
+    <!-- 다크모드 표면 색상 -->
+    <color name="colorSurface">#121212</color>
+    <!-- 표면 위 텍스트 색상 (밝은 회색 계열) -->
+    <color name="colorOnSurface">#FFFFFF</color>
+
 </resources>

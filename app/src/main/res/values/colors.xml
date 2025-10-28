@@ -43,4 +43,7 @@
     <!-- ListView 배경 색상 -->
     <color name="list_background_light">#FFFFFF</color>
     <color name="list_background_dark">#1E1E1E</color>
+
+    <color name="colorSurface">#FFFFFF</color>
+    <color name="colorOnSurface">#000000</color>
 </resources>

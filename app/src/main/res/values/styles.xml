@@ -72,4 +72,9 @@
         <item name="android:backgroundDimAmount">0.5</item>
     </style>
 
+    <style name="SpinnerPopupTheme" parent="ThemeOverlay.MaterialComponents.Light">
+        <item name="android:textColor">?android:attr/textColorPrimary</item>
+        <item name="android:background">@color/colorSurface</item>
+    </style>
+
 </resources>

@@ -29,4 +29,10 @@
         <item name="android:minHeight">48dp</item>
     </style>
 
+    <style name="SpinnerPopupTheme" parent="ThemeOverlay.MaterialComponents">
+        <!-- 어두운 배경에서 밝은 글자 -->
+        <item name="android:textColor">?android:attr/textColorPrimaryInverse</item>
+        <item name="android:background">@color/colorSurface</item>
+    </style>
+
 </resources>
