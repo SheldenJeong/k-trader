@@ -28,7 +28,7 @@ import java.util.List;
  * DB 구독 시스템을 통해 실시간으로 주문 데이터 로그를 표시
  * Created by K-Trader on 2024-12-25.
  */
-public class TransactionLogPage extends Fragment implements DatabaseMonitor.DatabaseChangeListener {
+public class TransactionLogPage extends Fragment {
 
     public static final String BROADCAST_LOG_MESSAGE = "TRADE_LOG";
 
@@ -61,10 +61,7 @@ public class TransactionLogPage extends Fragment implements DatabaseMonitor.Data
         if (getContext() != null) {
             registerBroadcastReceiver();
         }
-        
-        // DB 구독 시작
-        subscribeToDatabase();
-        
+
         return view;
     }
 
@@ -79,51 +76,6 @@ public class TransactionLogPage extends Fragment implements DatabaseMonitor.Data
         // BroadcastReceiver 해제
         if (logReceiver != null && getContext() != null) {
             LocalBroadcastManager.getInstance(getContext()).unregisterReceiver(logReceiver);
-        }
-    }
-
-    /**
-     * DB 구독을 시작하는 메서드
-     */
-    private void subscribeToDatabase() {
-        if (databaseMonitor != null && getContext() != null) {
-            // 활성 주문만 구독 (Transaction Log용)
-            databaseMonitor.subscribeToActiveOrders(this);
-            Log.d("KTrader", "[TransactionLogPage] 활성 주문 DB 구독 시작");
-        }
-    }
-
-    /**
-     * DB 변경 리스너 구현
-     */
-    @Override
-    public void onOrdersChanged(List<TradeData> orders) {
-        if (getActivity() != null) {
-            long currentTime = System.currentTimeMillis();
-            
-            // 무한 루프 방지: 1초마다만 업데이트
-            if (currentTime - lastOrderUpdateTime < ORDER_UPDATE_THROTTLE_MS) {
-                return;
-            }
-            lastOrderUpdateTime = currentTime;
-            
-            getActivity().runOnUiThread(() -> {
-                try {
-                    // UI에만 표시하고 브로드캐스트하지 않음
-                    appendLogToUI("=== 활성 주문 목록 업데이트 ===");
-                    
-                    if (orders != null && !orders.isEmpty()) {
-                        for (TradeData order : orders) {
-                            appendLogToUI(order.toString());
-                        }
-                        appendLogToUI("=== 활성 주문 총 " + orders.size() + "개 ===");
-                    } else {
-                        appendLogToUI("=== 활성 주문 총 0개 ===");
-                    }
-                } catch (Exception e) {
-                    android.util.Log.e("KTrader", "[TransactionLogPage] Error updating orders", e);
-                }
-            });
         }
     }
 
@@ -167,21 +119,8 @@ public class TransactionLogPage extends Fragment implements DatabaseMonitor.Data
         if (editText != null && getActivity() != null) {
             getActivity().runOnUiThread(() -> {
                 try {
-                    long currentTime = System.currentTimeMillis();
-                    String logWithTime;
-                    
-                    // 처음 로그이거나 10초 이상 지난 경우에만 시간 표시
-                    if (lastLogTimestamp == 0 || (currentTime - lastLogTimestamp) > 10000) {
-                        String timestamp = java.text.SimpleDateFormat.getDateTimeInstance().format(new java.util.Date());
-                        logWithTime = timestamp + "\n" + log + "\n";
-                        lastLogTimestamp = currentTime;
-                    } else {
-                        logWithTime = log + "\n";
-                    }
-                    
-                    // 로그 추가
-                    editText.append(logWithTime);
-                    
+                    editText.append(log + "\n");
+
                     // 최대 버퍼 크기 제한
                     String currentText = editText.getText().toString();
                     if (currentText.length() > MAX_BUFFER) {
