@@ -103,7 +103,7 @@ public class MainPage extends Fragment {
         @Override
         public void run() {
             refreshCurrentPage();
-            int AUTO_REFRESH_PERIOD = 7000;
+            int AUTO_REFRESH_PERIOD = 5000;
             handler.postDelayed(this, AUTO_REFRESH_PERIOD); // 5초마다 반복
         }
     };
@@ -438,8 +438,6 @@ public class MainPage extends Fragment {
 
                 if (getActivity() != null) {
                     getActivity().runOnUiThread(() -> updateTransactionCardUi(formattedCoinKw, null));
-                } else {
-                    updateTransactionCardUi(formattedCoinKw, null);
                 }
             } catch (Exception e) {
                 Log.e("KTrader", "[MainPage] refreshTransactionCardCoinValue error", e);
@@ -876,8 +874,6 @@ public class MainPage extends Fragment {
                     if (coinKwValue != null || estimatedBalance != null) {
                         if (getActivity() != null) {
                             getActivity().runOnUiThread(() -> updateTransactionCardUi(coinKwValue, estimatedBalance));
-                        } else {
-                            updateTransactionCardUi(coinKwValue, estimatedBalance);
                         }
                     }
 
@@ -1005,7 +1001,7 @@ public class MainPage extends Fragment {
             Log.d("KTrader", "[MainPage] Starting direct API call for price and change data...");
             
             // OrderManager를 통해 가격과 등락률 정보 가져오기
-            com.example.k_trader.base.OrderManager orderManager = new com.example.k_trader.base.OrderManager();
+            OrderManager orderManager = new com.example.k_trader.base.OrderManager();
             
             // 백그라운드에서 API 호출
             new Thread(() -> {
@@ -1143,25 +1139,7 @@ public class MainPage extends Fragment {
             Log.e("KTrader", "Error in fetchCurrentPriceFromApi", e);
         }
     }
-    
-    /**
-     * 가격 정보를 UI에 표시
-     */
-    private void updatePriceDisplay(int currentPrice) {
-        Log.d("KTrader", "Updating price display with: " + currentPrice);
-        
-        if (textCurrentPrice != null) {
-            String formattedPrice = String.format(java.util.Locale.getDefault(), "₩%,d", currentPrice);
-            textCurrentPrice.setText(formattedPrice);
-            Log.d("KTrader", "Updated current price display: " + formattedPrice);
-        } else {
-            Log.w("KTrader", "textCurrentPrice is null");
-        }
-        
-        // 등락률은 TransactionInfo에서 전일 대비 등락률로 업데이트됨
-        // 여기서는 하드코딩하지 않음
-    }
-    
+
     /**
      * 트랜잭션 카드 UI 업데이트 (잔고/예상잔고/총합)
      */
