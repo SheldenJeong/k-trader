@@ -8,18 +8,18 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.TextView;
 import com.example.k_trader.R;
-import com.example.k_trader.ui.fragment.TransactionStatusPage;
+import com.example.k_trader.ui.fragment.MainPage;
 
 /**
  * TransactionCard 상세 정보를 보여주는 다이얼로그
  */
 public class TransactionDetailDialog extends Dialog {
     
-    private TransactionStatusPage.CardAdapter.TransactionCard transactionCard;
+    private MainPage.TransactionCard transactionCard;
     private Context context;
 
     public TransactionDetailDialog(@NonNull Context context, 
-                                TransactionStatusPage.CardAdapter.TransactionCard transactionCard) {
+                                MainPage.TransactionCard transactionCard) {
         super(context);
         this.context = context;
         this.transactionCard = transactionCard;
@@ -109,7 +109,7 @@ public class TransactionDetailDialog extends Dialog {
      * 정적 팩토리 메서드로 다이얼로그 생성
      */
     public static void show(Context context, 
-                          TransactionStatusPage.CardAdapter.TransactionCard transactionCard) {
+                          MainPage.TransactionCard transactionCard) {
         TransactionDetailDialog dialog = new TransactionDetailDialog(context, transactionCard);
         dialog.show();
     }

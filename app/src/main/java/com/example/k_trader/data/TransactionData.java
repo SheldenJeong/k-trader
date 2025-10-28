@@ -1,6 +1,6 @@
 package com.example.k_trader.data;
 
-import com.example.k_trader.ui.fragment.TransactionStatusPage;
+import com.example.k_trader.ui.fragment.MainPage;
 
 import java.util.Date;
 
@@ -140,8 +140,8 @@ public class TransactionData {
     /**
      * TransactionItemFragment의 TransactionCard로 변환
      */
-    public TransactionStatusPage.CardAdapter.TransactionCard oTransactionCard() {
-        return new TransactionStatusPage.CardAdapter.TransactionCard(
+    public MainPage.TransactionCard oTransactionCard() {
+        return new MainPage.TransactionCard(
             transactionTime, coinKwValue, estimatedBalance,
             lastBuyPrice, lastSellPrice, nextBuyPrice
         );

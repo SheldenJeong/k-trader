@@ -7,7 +7,7 @@ import android.support.v4.content.LocalBroadcastManager;
 import com.example.k_trader.KTraderApplication;
 import com.example.k_trader.database.OrderDatabase;
 import com.example.k_trader.database.entities.ErrorEntity;
-import com.example.k_trader.ui.fragment.TransactionStatusPage;
+import com.example.k_trader.ui.fragment.MainPage;
 import com.example.k_trader.database.ErrorRepository;
 import com.example.k_trader.database.ApiCallResultRepository;
 import com.example.k_trader.database.TransactionInfoRepository;
@@ -394,7 +394,7 @@ public class TransactionDataManager {
         saveErrorToDatabase(errorTime, errorType, errorMessage, "TransactionDataManager.syncWithServer()", e);
         
         // UI에 에러 카드 표시
-        Intent intent = new Intent(TransactionStatusPage.BROADCAST_ERROR_CARD);
+        Intent intent = new Intent(MainPage.BROADCAST_ERROR_CARD);
         intent.putExtra("errorTime", String.valueOf(errorTime));
         intent.putExtra("errorType", errorType);
         intent.putExtra("errorMessage", errorMessage);

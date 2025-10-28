@@ -51,7 +51,7 @@
             android:id="@+id/textCoinKwValueCard"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/sample_change"
+            android:text="@string/sample_balance"
             android:textColor="@color/success_modern"
             android:textSize="12sp"
             android:textStyle="bold" />

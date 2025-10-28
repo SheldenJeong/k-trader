@@ -22,6 +22,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.example.k_trader.R;
+import com.example.k_trader.base.TradeData;
 import com.example.k_trader.database.entities.TransactionInfoEntity;
 import com.example.k_trader.ui.activity.MainActivity;
 import com.example.k_trader.service.TradeJobService;
@@ -46,6 +47,13 @@ import org.json.simple.JSONObject;
 public class MainPage extends Fragment {
 
     private static final String KEY_TRADING_STATE = "KEY_TRADING_STATE";
+    public static final int TYPE_TRANSACTION = 0;
+    public static final int TYPE_ERROR = 1;
+    public static final int TYPE_ORDER = 2;
+
+    public static final String BROADCAST_CARD_DATA = "TRADE_CARD_DATA";
+    public static final String BROADCAST_ERROR_CARD = "TRADE_ERROR_CARD";
+    public static final String BROADCAST_TRANSACTION_DATA = "com.example.k_trader.TRANSACTION_DATA_UPDATED";
 
     private android.support.design.widget.FloatingActionButton fabTradingToggle;
     
@@ -354,6 +362,9 @@ public class MainPage extends Fragment {
         fetchCurrentPriceFromApi();
         Log.d("KTrader", "[MainPage] Transaction card API call initiated");
 
+        // 2-1. 브로드캐스트가 없더라도 카드의 코인 원화 잔고를 직접 계산해 갱신
+        refreshTransactionCardCoinValue();
+
         // 3. 모든 하위 페이지 새로고침 (현재 선택된 탭과 관계없이)
 
         String tag0 = "android:switcher:" + viewPager.getId() + ":" + 0;
@@ -377,6 +388,54 @@ public class MainPage extends Fragment {
         }
 
         Log.d("KTrader", "[MainPage] All components refreshed");
+    }
+
+    /**
+     * 현재 보유 코인 수량(available + in_use)과 현재가로 코인 원화 잔고를 계산하여 카드에 반영
+     */
+    private void refreshTransactionCardCoinValue() {
+        new Thread(() -> {
+            try {
+                // 현재가 파싱 (텍스트에서 숫자만 추출)
+                int currentPrice = 0;
+                if (textCurrentPrice != null && textCurrentPrice.getText() != null) {
+                    String priceNum = textCurrentPrice.getText().toString().replaceAll("[^0-9]", "");
+                    if (!priceNum.isEmpty()) currentPrice = Integer.parseInt(priceNum);
+                }
+
+                if (currentPrice <= 0) {
+                    Log.w("KTrader", "[MainPage] refreshTransactionCardCoinValue: currentPrice is not ready");
+                    return;
+                }
+
+                OrderManager orderManager = new OrderManager();
+                String coinType = GlobalSettings.getInstance().getCoinType();
+                String fieldSuffix = coinType.toLowerCase();
+
+                java.util.HashMap<String, String> params = new java.util.HashMap<>();
+                params.put("currency", coinType);
+                org.json.simple.JSONObject dataObj = orderManager.getBalanceWithParams("MainPage 카드 잔고 갱신", params);
+
+                double available = 0.0;
+                double inUse = 0.0;
+                Object availObj = dataObj.get("available_" + fieldSuffix);
+                Object inUseObj = dataObj.get("in_use_" + fieldSuffix);
+                if (availObj != null) available = Double.parseDouble(availObj.toString());
+                if (inUseObj != null) inUse = Double.parseDouble(inUseObj.toString());
+
+                double totalCoin = available + inUse;
+                long coinKw = (long) Math.floor(totalCoin * currentPrice);
+                final String formattedCoinKw = String.format(java.util.Locale.getDefault(), "₩%,d", coinKw);
+
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() -> updateTransactionCardUi(formattedCoinKw, null));
+                } else {
+                    updateTransactionCardUi(formattedCoinKw, null);
+                }
+            } catch (Exception e) {
+                Log.e("KTrader", "[MainPage] refreshTransactionCardCoinValue error", e);
+            }
+        }).start();
     }
     
     public void scrollToBottomInPage() {
@@ -564,6 +623,112 @@ public class MainPage extends Fragment {
         return floor;
     }
 
+    public static class TransactionCard {
+        public static final String BROADCAST_CARD_DATA = "TRADE_CARD_DATA";
+        public static final String BROADCAST_ERROR_CARD = "TRADE_ERROR_CARD";
+        public static final String BROADCAST_TRANSACTION_DATA = "com.example.k_trader.TRANSACTION_DATA_UPDATED";
+
+        public String transactionTime;
+        public String coinKwValue;        // 코인 원화 잔고
+        public String estimatedBalance;   // 예상잔고
+        public String totalBalance;        // 코인 원화 잔고 + 예상잔고 (총 잔고)
+        public String krwBalance;
+        public String lastBuyPrice;
+        public String lastSellPrice;
+        public String nextBuyPrice;
+
+        public TransactionCard(String transactionTime, String coinKwValue, String estimatedBalance,
+                               String lastBuyPrice, String lastSellPrice, String nextBuyPrice) {
+            this.transactionTime = transactionTime;
+            this.coinKwValue = coinKwValue;
+            this.estimatedBalance = estimatedBalance;
+            this.krwBalance = coinKwValue;
+
+            // 코인 원화 잔고와 예상잔고 합산
+            this.totalBalance = calculateTotalBalance(coinKwValue, estimatedBalance);
+
+            this.lastBuyPrice = lastBuyPrice;
+            this.lastSellPrice = lastSellPrice;
+            this.nextBuyPrice = nextBuyPrice;
+        }
+
+        /**
+         * 코인 원화 잔고와 예상잔고를 합산하여 총 잔고 계산
+         */
+        private String calculateTotalBalance(String coinKwValue, String estimatedBalance) {
+            try {
+                // 정규표현식으로 숫자만 추출
+                String coinKwNum = coinKwValue.replaceAll("[^0-9,]", "").replace(",", "");
+                String estimatedNum = estimatedBalance.replaceAll("[^0-9,]", "").replace(",", "");
+
+                long coinValue = Long.parseLong(coinKwNum);
+                long estimated = Long.parseLong(estimatedNum);
+
+                long total = coinValue + estimated;
+
+                return String.format(java.util.Locale.getDefault(), "₩%,d", total);
+            } catch (Exception e) {
+                Log.e("KTrader", "[TransactionCard] Error calculating total balance", e);
+                return "₩0";
+            }
+        }
+
+        /**
+         * Transaction Time을 파싱하여 비교 가능한 시간값 반환
+         * 형식: "MM/dd HH:mm" (예: "12/25 14:30")
+         */
+        public long getTimeInMillis() {
+            try {
+                java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("MM/dd HH:mm", java.util.Locale.getDefault());
+                // 현재 연도를 기준으로 파싱
+                java.util.Calendar cal = java.util.Calendar.getInstance();
+                int currentYear = cal.get(java.util.Calendar.YEAR);
+
+                String fullDateTime = currentYear + "/" + transactionTime;
+                java.text.SimpleDateFormat fullSdf = new java.text.SimpleDateFormat("yyyy/MM/dd HH:mm", java.util.Locale.getDefault());
+                return fullSdf.parse(fullDateTime).getTime();
+            } catch (Exception e) {
+                // 파싱 실패 시 현재 시간 반환
+                return System.currentTimeMillis();
+            }
+        }
+    }
+
+    public static class ErrorCard {
+        public String errorTime;
+        public String errorType;
+        public String errorMessage;
+        public String apiEndpoint;
+        public String errorCode;
+        public String serverErrorMessage;
+        public String apiErrorDetails;
+
+        public ErrorCard(String errorTime, String errorType, String errorMessage) {
+            this.errorTime = errorTime;
+            this.errorType = errorType;
+            this.errorMessage = errorMessage;
+        }
+
+        public ErrorCard(String errorTime, String errorType, String errorMessage,
+                       String apiEndpoint, String errorCode, String serverErrorMessage, String apiErrorDetails) {
+            this.errorTime = errorTime;
+            this.errorType = errorType;
+            this.errorMessage = errorMessage;
+            this.apiEndpoint = apiEndpoint;
+            this.errorCode = errorCode;
+            this.serverErrorMessage = serverErrorMessage;
+            this.apiErrorDetails = apiErrorDetails;
+        }
+    }
+
+    public static class OrderCard {
+        public TradeData tradeData;
+
+        public OrderCard(TradeData tradeData) {
+            this.tradeData = tradeData;
+        }
+    }
+
     /**
      * Transaction Fragment들을 관리하는 PagerAdapter
      */
@@ -666,13 +831,19 @@ public class MainPage extends Fragment {
                 
                 // BROADCAST_CARD_DATA, BROADCAST_TRANSACTION_DATA만 처리
                 if (intent.getAction() != null && 
-                    (intent.getAction().equals(TransactionStatusPage.BROADCAST_CARD_DATA) ||
-                     intent.getAction().equals(TransactionStatusPage.BROADCAST_TRANSACTION_DATA))) {
+                    (intent.getAction().equals(BROADCAST_CARD_DATA) ||
+                     intent.getAction().equals(BROADCAST_TRANSACTION_DATA))) {
                     
-                    // 카드 데이터에서 가격 정보 추출하여 UI 업데이트
+                    // 카드 데이터에서 가격/잔고/메타 정보 추출하여 UI 업데이트
                     String btcCurrentPrice = intent.getStringExtra("btcCurrentPrice");
                     String hourlyChange = intent.getStringExtra("hourlyChange");
                     String dailyChange = intent.getStringExtra("dailyChange");
+                    String coinKwValue = intent.getStringExtra("coinKwValue");
+                    String estimatedBalance = intent.getStringExtra("estimatedBalance");
+                    String transactionTime = intent.getStringExtra("transactionTime");
+                    String lastBuyPrice = intent.getStringExtra("lastBuyPrice");
+                    String lastSellPrice = intent.getStringExtra("lastSellPrice");
+                    String nextBuyPrice = intent.getStringExtra("nextBuyPrice");
                     
                     Log.d("KTrader", "[MainPage] Received data - Price: " + btcCurrentPrice + ", HourlyChange: " + hourlyChange + ", DailyChange: " + dailyChange);
                     
@@ -683,6 +854,24 @@ public class MainPage extends Fragment {
                     } else if (textCurrentPrice != null) {
                         textCurrentPrice.setText(btcCurrentPrice);
                         Log.d("KTrader", "[MainPage] Updated current price: " + btcCurrentPrice);
+                    }
+
+                    // 트랜잭션 카드 UI 갱신 (잔고/예상잔고)
+                    if (coinKwValue != null || estimatedBalance != null) {
+                        if (getActivity() != null) {
+                            getActivity().runOnUiThread(() -> updateTransactionCardUi(coinKwValue, estimatedBalance));
+                        } else {
+                            updateTransactionCardUi(coinKwValue, estimatedBalance);
+                        }
+                    }
+
+                    // 트랜잭션 카드 메타 갱신 (업데이트 시간/마지막 매수/마지막 매도/다음 매수)
+                    if (transactionTime != null || lastBuyPrice != null || lastSellPrice != null || nextBuyPrice != null) {
+                        if (getActivity() != null) {
+                            getActivity().runOnUiThread(() -> updateTransactionCardMeta(transactionTime, lastBuyPrice, lastSellPrice, nextBuyPrice));
+                        } else {
+                            updateTransactionCardMeta(transactionTime, lastBuyPrice, lastSellPrice, nextBuyPrice);
+                        }
                     }
                     
                      // CoinInfo에는 1시간 등락폭 표시
@@ -705,8 +894,8 @@ public class MainPage extends Fragment {
         // BroadcastReceiver 등록 - 두 액션 모두 등록
         if (getContext() != null) {
             android.content.IntentFilter filter = new android.content.IntentFilter();
-            filter.addAction(TransactionStatusPage.BROADCAST_CARD_DATA);
-            filter.addAction(TransactionStatusPage.BROADCAST_TRANSACTION_DATA);
+            filter.addAction(BROADCAST_CARD_DATA);
+            filter.addAction(BROADCAST_TRANSACTION_DATA);
             android.support.v4.content.LocalBroadcastManager.getInstance(getContext()).registerReceiver(cardDataReceiver, filter);
             Log.d("KTrader", "[MainPage] BroadcastReceiver registered for both actions");
         }
@@ -959,6 +1148,67 @@ public class MainPage extends Fragment {
         // 여기서는 하드코딩하지 않음
     }
     
+    /**
+     * 트랜잭션 카드 UI 업데이트 (잔고/예상잔고/총합)
+     */
+    private void updateTransactionCardUi(String coinKwValue, String estimatedBalance) {
+        if (textCoinKwValueCard == null || textEstimatedBalanceCard == null || textTotalBalanceCard == null) {
+            Log.w("KTrader", "[MainPage] Transaction card TextViews are null");
+            return;
+        }
+
+        if (coinKwValue != null && !"".equals(coinKwValue)) {
+            textCoinKwValueCard.setText(coinKwValue);
+        }
+        if (estimatedBalance != null && !"".equals(estimatedBalance)) {
+            textEstimatedBalanceCard.setText(estimatedBalance);
+        }
+
+        String total = calculateTotalBalanceSafe(
+                textCoinKwValueCard.getText().toString(),
+                textEstimatedBalanceCard.getText().toString()
+        );
+        textTotalBalanceCard.setText(total);
+        Log.d("KTrader", "[MainPage] Transaction card updated: coin=" + textCoinKwValueCard.getText() + ", est=" + textEstimatedBalanceCard.getText() + ", total=" + total);
+    }
+
+    /**
+     * 트랜잭션 카드 UI 메타 업데이트 (업데이트 시간/마지막 매수/마지막 매도/다음 매수)
+     */
+    private void updateTransactionCardMeta(String transactionTime, String lastBuyPrice, String lastSellPrice, String nextBuyPrice) {
+        if (textTransactionTimeCard != null && transactionTime != null && !transactionTime.isEmpty()) {
+            textTransactionTimeCard.setText(transactionTime);
+        }
+        if (textLastBuyPriceCard != null && lastBuyPrice != null && !lastBuyPrice.isEmpty()) {
+            textLastBuyPriceCard.setText(lastBuyPrice);
+        }
+        if (textLastSellPriceCard != null && lastSellPrice != null && !lastSellPrice.isEmpty()) {
+            textLastSellPriceCard.setText(lastSellPrice);
+        }
+        if (textNextBuyPriceCard != null && nextBuyPrice != null && !nextBuyPrice.isEmpty()) {
+            textNextBuyPriceCard.setText(nextBuyPrice);
+        }
+        Log.d("KTrader", "[MainPage] Transaction card meta updated: time=" + (transactionTime == null ? "" : transactionTime)
+                + ", lastBuy=" + (lastBuyPrice == null ? "" : lastBuyPrice)
+                + ", lastSell=" + (lastSellPrice == null ? "" : lastSellPrice)
+                + ", nextBuy=" + (nextBuyPrice == null ? "" : nextBuyPrice));
+    }
+
+    private String calculateTotalBalanceSafe(String coinKwValue, String estimatedBalance) {
+        try {
+            String coinKwNum = coinKwValue.replaceAll("[^0-9,]", "").replace(",", "");
+            String estimatedNum = estimatedBalance.replaceAll("[^0-9,]", "").replace(",", "");
+
+            long coinValue = coinKwNum.isEmpty() ? 0 : Long.parseLong(coinKwNum);
+            long estimated = estimatedNum.isEmpty() ? 0 : Long.parseLong(estimatedNum);
+            long total = coinValue + estimated;
+            return String.format(java.util.Locale.getDefault(), "₩%,d", total);
+        } catch (Exception e) {
+            Log.e("KTrader", "[MainPage] Error calculating total balance", e);
+            return "₩0";
+        }
+    }
+
     /**
      * 코인 정보 업데이트
      */
