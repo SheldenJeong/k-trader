@@ -13,6 +13,9 @@ public class KTraderApplication extends Application {
     }
 
     public static Context getAppContext() {
+        if (instance == null) {
+            return null;
+        }
         return instance.getApplicationContext();
     }
 }

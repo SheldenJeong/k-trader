@@ -1,6 +1,7 @@
 package com.example.k_trader.base;
 
 import android.content.Intent;
+import android.content.Context;
 import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 
@@ -60,21 +61,41 @@ public class OrderManager {
     public OrderManager() {
         tradeApiService = new DefaultTradeApiService();
         gson = new Gson();
-        database = OrderDatabase.getInstance(KTraderApplication.getAppContext());
-        tickerDao = database.BithumbTickerDao();
-        balanceDao = database.BithumbBalanceDao();
-        orderDao = database.BithumbOrderDao();
-        apiStatsDao = database.apiCallStatsDao();
+        Context appContext = KTraderApplication.getAppContext();
+        if (appContext != null) {
+            database = OrderDatabase.getInstance(appContext);
+            tickerDao = database.BithumbTickerDao();
+            balanceDao = database.BithumbBalanceDao();
+            orderDao = database.BithumbOrderDao();
+            apiStatsDao = database.apiCallStatsDao();
+        } else {
+            database = null;
+            tickerDao = null;
+            balanceDao = null;
+            orderDao = null;
+            apiStatsDao = null;
+            Log.w("KTrader", "[OrderManager] App context is null. DB-related features are disabled.");
+        }
     }
 
     public OrderManager(TradeApiService tradeApiService) {
         this.tradeApiService = tradeApiService;
         gson = new Gson();
-        database = OrderDatabase.getInstance(KTraderApplication.getAppContext());
-        tickerDao = database.BithumbTickerDao();
-        balanceDao = database.BithumbBalanceDao();
-        orderDao = database.BithumbOrderDao();
-        apiStatsDao = database.apiCallStatsDao();
+        Context appContext = KTraderApplication.getAppContext();
+        if (appContext != null) {
+            database = OrderDatabase.getInstance(appContext);
+            tickerDao = database.BithumbTickerDao();
+            balanceDao = database.BithumbBalanceDao();
+            orderDao = database.BithumbOrderDao();
+            apiStatsDao = database.apiCallStatsDao();
+        } else {
+            database = null;
+            tickerDao = null;
+            balanceDao = null;
+            orderDao = null;
+            apiStatsDao = null;
+            Log.w("KTrader", "[OrderManager] App context is null. DB-related features are disabled.");
+        }
     }
 
     public boolean cancelOrder(String tag, TradeData data) {
