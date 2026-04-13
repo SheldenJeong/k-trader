@@ -38,7 +38,6 @@ import java.util.TimerTask;
 public class MainActivity extends AppCompatActivity {
 
     int MAX_PAGE = 1; // MainPage만 사용, 내부 ViewPager에서 3개 페이지 관리
-    Fragment cur_fragment = new Fragment();
     ViewPager viewPager;
     
     // ViewModel
@@ -284,74 +283,6 @@ public class MainActivity extends AppCompatActivity {
     }
     
     /**
-     * 코인 정보 새로고침 (기존 메서드 유지)
-     */
-    private void refreshCoinInfo() {
-        android.util.Log.d("KTrader", "[MainActivity] refreshCoinInfo() called");
-        try {
-            // MainPage Fragment 찾기
-            android.support.v4.app.FragmentManager fragmentManager = getSupportFragmentManager();
-            android.support.v4.app.Fragment fragment = fragmentManager.findFragmentById(android.R.id.content);
-            
-            android.util.Log.d("KTrader", "[MainActivity] Fragment found: " + (fragment != null ? fragment.getClass().getSimpleName() : "null"));
-            
-            if (fragment instanceof MainPage) {
-                android.util.Log.d("KTrader", "[MainActivity] Found MainPage fragment, calling refreshCoinData()");
-                MainPage mainPage = (MainPage) fragment;
-                mainPage.refreshCoinData();
-            } else {
-                // ViewPager에서 MainPage 찾기
-                android.util.Log.d("KTrader", "[MainActivity] Fragment not found directly, searching in ViewPager");
-                ViewPager viewPager = findViewById(R.id.viewpager);
-                android.util.Log.d("KTrader", "[MainActivity] ViewPager found: " + (viewPager != null ? "not null" : "null"));
-                
-                if (viewPager != null) {
-                    android.support.v4.app.FragmentPagerAdapter adapter = (android.support.v4.app.FragmentPagerAdapter) viewPager.getAdapter();
-                    android.util.Log.d("KTrader", "[MainActivity] ViewPager adapter found: " + (adapter != null ? "not null" : "null"));
-                    
-                    if (adapter != null) {
-                        // 현재 활성화된 Fragment 가져오기
-                        android.support.v4.app.Fragment currentFragment = getSupportFragmentManager().findFragmentByTag("android:switcher:" + R.id.viewpager + ":" + viewPager.getCurrentItem());
-                        android.util.Log.d("KTrader", "[MainActivity] Current fragment from tag: " + (currentFragment != null ? currentFragment.getClass().getSimpleName() : "null"));
-                        
-                        if (currentFragment instanceof MainPage) {
-                            MainPage mainPage = (MainPage) currentFragment;
-                            android.util.Log.d("KTrader", "[MainActivity] Found active MainPage fragment, calling refreshCoinData()");
-                            try {
-                                mainPage.refreshCoinData();
-                                android.util.Log.d("KTrader", "[MainActivity] refreshCoinData() call completed successfully");
-                            } catch (Exception e) {
-                                android.util.Log.e("KTrader", "[MainActivity] Error calling refreshCoinData()", e);
-                                Toast.makeText(this, "새로고침 중 오류가 발생했습니다.", Toast.LENGTH_SHORT).show();
-                            }
-                        } else {
-                            android.util.Log.w("KTrader", "[MainActivity] Current fragment is not MainPage or is null");
-                            
-                            // 대안: adapter.getItem() 방식도 시도
-                            MainPage mainPage = (MainPage) adapter.getItem(0);
-                            android.util.Log.d("KTrader", "[MainActivity] Trying adapter.getItem(0): " + (mainPage != null ? "not null" : "null"));
-                            
-                            if (mainPage != null) {
-                                android.util.Log.d("KTrader", "[MainActivity] Fragment class: " + mainPage.getClass().getSimpleName());
-                                android.util.Log.d("KTrader", "[MainActivity] Fragment toString: " + mainPage.toString());
-                                android.util.Log.d("KTrader", "[MainActivity] Fragment isAdded: " + mainPage.isAdded());
-                                android.util.Log.d("KTrader", "[MainActivity] Fragment isDetached: " + mainPage.isDetached());
-                            }
-                        }
-                    } else {
-                        android.util.Log.w("KTrader", "[MainActivity] ViewPager adapter is null");
-                    }
-                } else {
-                    android.util.Log.w("KTrader", "[MainActivity] ViewPager is null");
-                }
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-            Toast.makeText(this, "새로고침 중 오류가 발생했습니다.", Toast.LENGTH_SHORT).show();
-        }
-    }
-    
-    /**
      * 빗썸 앱을 실행하는 메서드
      */
     private void launchBithumbApp() {
@@ -502,8 +433,7 @@ public class MainActivity extends AppCompatActivity {
                 return null;
 
             // MainPage만 반환 (내부에서 ViewPager로 관리)
-            cur_fragment = new MainPage();
-            return cur_fragment;
+            return new MainPage();
         }
 
         @Override

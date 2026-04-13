@@ -1096,17 +1096,7 @@ public class TradeJobService extends Service {
             intent.putExtra("nextBuyPrice", nextBuyPrice);
             
             Log.d("KTrader", "[TradeJobService] Sending card data - Price: " + coinCurrentPrice + ", Change: " + hourlyChange);
-            
-            // TransactionData 생성 및 coinKwValue 설정
-            com.example.k_trader.data.TransactionData transactionData = new com.example.k_trader.data.TransactionData(
-                transactionTime, coinCurrentPrice, hourlyChange, getDailyChangeFromApi(),
-                estimatedBalance, coinValue, lastBuyPrice, lastSellPrice, nextBuyPrice
-            );
-            
-            // TransactionDataManager를 통해 데이터 전송
-            com.example.k_trader.data.TransactionDataManager dataManager = 
-                com.example.k_trader.data.TransactionDataManager.getInstance(KTraderApplication.getAppContext());
-            
+
             LocalBroadcastManager.getInstance(KTraderApplication.getAppContext()).sendBroadcast(intent);
         } catch (Exception e) {
             Log.e("[TradeJobService]", "카드 데이터 전송 중 오류 발생", e);

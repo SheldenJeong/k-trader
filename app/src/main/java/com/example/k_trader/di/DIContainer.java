@@ -69,32 +69,6 @@ public class DIContainer {
         return instance;
     }
 
-    private void initializeDependenciesAsync() {
-        Log.d("KTrader", "[DIContainer] Starting async dependency initialization");
-        
-        new Thread(() -> {
-            try {
-                // 1. Database 초기화
-                initializeDatabase();
-                
-                // 2. DAOs 초기화
-                initializeDAOs();
-                
-                // 3. API Service 초기화
-                initializeApiService();
-                
-                // 4. Repository Implementations 초기화
-                initializeRepositories();
-                
-                Log.d("KTrader", "[DIContainer] All dependencies initialized successfully");
-                
-            } catch (Exception e) {
-                Log.e("KTrader", "[DIContainer] Error initializing dependencies", e);
-                // 예외가 발생해도 앱이 크래시되지 않도록 처리
-            }
-        }).start();
-    }
-
     private void initializeDependencies() {
         Log.d("KTrader", "[DIContainer] Initializing dependencies");
         
