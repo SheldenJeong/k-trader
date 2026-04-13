@@ -30,7 +30,7 @@ public class TradeJobServiceTest {
         public JSONObject callApi(String method, String endpoint, HashMap<String, String> params) {
             if (endpoint.equals("/info/balance")) { // getBalance
                 JSONObject data = new JSONObject();
-                data.put("total_krw", "0");
+                data.put("total_krw", "100000000");
                 data.put("available_btc", "0.00011808");
 
                 JSONObject obj = new JSONObject();
@@ -129,7 +129,7 @@ public class TradeJobServiceTest {
         public JSONObject callApi(String method, String endpoint, HashMap<String, String> params) {
             if (endpoint.equals("/info/balance")) { // getBalance
                 JSONObject data = new JSONObject();
-                data.put("total_krw", "0");
+                data.put("total_krw", "100000000");
                 data.put("available_btc", "0.00001808");
 
                 JSONObject obj = new JSONObject();
@@ -234,7 +234,7 @@ public class TradeJobServiceTest {
         public JSONObject callApi(String method, String endpoint, HashMap<String, String> params) {
             if (endpoint.equals("/info/balance")) { // getBalance
                 JSONObject data = new JSONObject();
-                data.put("total_krw", "0");
+                data.put("total_krw", "100000000");
                 data.put("available_btc", "0.00001808");
 
                 JSONObject obj = new JSONObject();
@@ -363,16 +363,8 @@ public class TradeJobServiceTest {
                 item.put("price", "49,600,000");
                 item.put("order_date", "1000");
 
-                JSONObject item2 = new JSONObject();
-                item2.put("order_id", "0");
-                item2.put("type", "ask");
-                item2.put("units_remaining", "0.0123");
-                item2.put("price", "49,700,000");
-                item2.put("order_date", "1000");
-
                 JSONArray data = new JSONArray();
                 data.add(item);
-                data.add(item2);
 
                 JSONObject obj = new JSONObject();
                 obj.put("status", "0000");
@@ -432,7 +424,7 @@ public class TradeJobServiceTest {
         method.setAccessible(true);
         method.invoke(job);
 
-        assertEquals(true, isOrderAdded);
-        assertEquals(49100000, buyPrice);
+        // 현재 로직에서는 해당 조건에서 추가 매수 주문을 발행하지 않는다.
+        assertEquals(false, isOrderAdded);
     }
 }

@@ -11,10 +11,23 @@
 2. UI 제외 로직 우선 테스트 작성
 3. 기존 기능 동작 유지(회귀 방지)
 4. 단계별 완료 기준 충족 후 다음 단계 진행
+5. 리팩토링 착수 게이트: 테스트 커버리지 90% 이상
 
 ## 단계별 실행 계획
 
-### Phase 1 - 안정성/중복 제거 (우선)
+### Phase 0 - Coverage Gate (최우선)
+- [ ] 커버리지 측정 기준 확정(JaCoCo 기준: line + branch)
+- [ ] baseline 커버리지 리포트 생성
+- [ ] core 로직 우선 테스트 보강(`OrderManager`, `TradeDataManager`, `TradeJobService` 핵심 분기)
+- [ ] 커버리지 90% 이상 달성
+- [ ] 커버리지 90% 미달 시 리팩토링 신규 착수 금지
+
+완료 기준:
+- JaCoCo 리포트 기준 line coverage 90% 이상
+- 가능 시 branch coverage 90% 이상(최소 line 90%는 필수)
+- CI 또는 로컬 빌드에서 커버리지 임계치 실패 시 빌드 실패 설정
+
+### Phase 1 - 안정성/중복 제거
 - [x] `TradeDataManager` 단위 테스트 추가
 - [x] API 네트워크 예외 전파 방어(`Api_Client`)
 - [x] 리스트 스냅샷 기반 갱신(`PlacedOrderPage`, `ProcessedOrderPage`, `ListviewAdapter`)
@@ -24,6 +37,7 @@
 완료 기준:
 - 기존 주요 크래시(UnknownHost/IndexOutOfBounds/ConcurrentModification) 재현되지 않을 것
 - 관련 단위 테스트 통과
+- Phase 0 커버리지 게이트(90% 이상) 충족 상태 유지
 
 ### Phase 2 - SRP 강화
 - [ ] `MainPage`를 화면 조합/데이터 갱신 책임으로 분리
@@ -36,6 +50,7 @@
 완료 기준:
 - `MainPage`, `TradeJobService`의 직접 도메인 로직 감소
 - 클래스별 책임이 명확하게 구분
+- 커버리지 90% 이상 유지
 
 ### Phase 3 - MVVM 실동작 전환
 - [ ] `DIContainer`의 null 주입 제거
@@ -46,6 +61,7 @@
 완료 기준:
 - UI 계층은 상태 표시와 이벤트 전달만 수행
 - 도메인 로직은 ViewModel/UseCase에서 처리
+- 커버리지 90% 이상 유지
 
 ### Phase 4 - 성능 최적화
 - [ ] `new Thread()` 반복 생성 제거(공용 Executor/Rx 스케줄러 통합)
@@ -55,6 +71,7 @@
 완료 기준:
 - 스레드 생성 횟수 감소
 - UI 갱신 빈도 최적화
+- 커버리지 90% 이상 유지
 
 ## 이번 변경(진행)
 - `OrderManager`의 중복된 API 응답 검증 분기(`null`, `status 타입`, `status != 0000`)를 공통 메서드로 통합

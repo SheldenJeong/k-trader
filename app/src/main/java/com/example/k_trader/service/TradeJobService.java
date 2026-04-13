@@ -579,7 +579,7 @@ public class TradeJobService extends Service {
 
                 if (pData.getType() == BUY) {
                     LogInfoFormatter.logInfo(LogInfoFormatter.formatBuyOccurred(pData.getPrice(), pData.getProcessedTime()));
-                    notificationManager.sendTradeNotification("매수 발생", "매수 : " + String.format(Locale.getDefault(), "%,d", pData.getPrice()) + ", " + String.format(Locale.getDefault(), "%02d/%02d %02d:%02d"
+                    sendTradeNotificationSafe("매수 발생", "매수 : " + String.format(Locale.getDefault(), "%,d", pData.getPrice()) + ", " + String.format(Locale.getDefault(), "%02d/%02d %02d:%02d"
                             , time.get(Calendar.MONTH) + 1, time.get(Calendar.DATE)
                             , time.get(Calendar.HOUR_OF_DAY), time.get(Calendar.MINUTE)));
 
@@ -681,7 +681,7 @@ public class TradeJobService extends Service {
                                     sellTime.get(Calendar.HOUR_OF_DAY), sellTime.get(Calendar.MINUTE));
                                 
                                 Log.d("KTrader", "[TradeJobService] 매도 대기 등록 노티 발생: " + notificationText);
-                                notificationManager.sendTradeNotification(notificationTitle, notificationText);
+                                sendTradeNotificationSafe(notificationTitle, notificationText);
 
                                 // 실제 Order ID를 설정하여 placedOrderManager에 추가
                                 String orderId = (String) sellResult.get("order_id");
@@ -701,12 +701,12 @@ public class TradeJobService extends Service {
                         }
                     }
                     if (!isSold) {
-                        notificationManager.sendTradeNotification("매도 실패", "매도시도 : "
+                        sendTradeNotificationSafe("매도 실패", "매도시도 : "
                                 + String.format(Locale.getDefault(), "%,d", pData.getPrice()));
                     }
                 } else if (pData.getType() == SELL) {
                     LogInfoFormatter.logInfo(LogInfoFormatter.formatSellOccurred(pData.getPrice(), pData.getProcessedTime()));
-                    notificationManager.sendTradeNotification("매도 발생", "매도 : " + String.format(Locale.getDefault(), "%,d", pData.getPrice()) + ", " + String.format(Locale.getDefault(), "%02d/%02d %02d:%02d"
+                    sendTradeNotificationSafe("매도 발생", "매도 : " + String.format(Locale.getDefault(), "%,d", pData.getPrice()) + ", " + String.format(Locale.getDefault(), "%02d/%02d %02d:%02d"
                             , time.get(Calendar.MONTH) + 1, time.get(Calendar.DATE)
                             , time.get(Calendar.HOUR_OF_DAY), time.get(Calendar.MINUTE)));
                 } else {
@@ -795,7 +795,7 @@ public class TradeJobService extends Service {
                                 exceptionTime.get(Calendar.HOUR_OF_DAY), exceptionTime.get(Calendar.MINUTE));
                             
                             Log.d("KTrader", "[TradeJobService] 예외 처리 매도 대기 등록 노티 발생: " + notificationText);
-                            notificationManager.sendTradeNotification(notificationTitle, notificationText);
+                            sendTradeNotificationSafe(notificationTitle, notificationText);
 
                             // 실제 Order ID를 설정하여 placedOrderManager에 추가
                             String orderId = (String) sellResult.get("order_id");
@@ -1022,6 +1022,14 @@ public class TradeJobService extends Service {
 
     public void setOrderManager(OrderManager orderManager) {
         this.orderManager = orderManager;
+    }
+
+    private void sendTradeNotificationSafe(String title, String message) {
+        if (notificationManager != null) {
+            notificationManager.sendTradeNotification(title, message);
+        } else {
+            Log.w("KTrader", "[TradeJobService] notificationManager is null, skipping notification: " + title);
+        }
     }
     
     private void sendCardData(int currentPrice, double krwBalance, double availableCoinBalance) {
