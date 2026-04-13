@@ -12,7 +12,7 @@ import org.junit.Test;
 import java.util.HashMap;
 
 public class OrderManagerTest {
-    class DummyApiClient extends Api_Client {
+    static class DummyApiClient extends Api_Client {
         @Override
         public JSONObject callApi(String method, String endpoint, HashMap<String, String> params) {
             JSONObject obj = new JSONObject();
@@ -21,7 +21,7 @@ public class OrderManagerTest {
         }
     }
 
-    class DummyTradeApiService implements OrderManager.TradeApiService {
+    static class DummyTradeApiService implements OrderManager.TradeApiService {
         @Override
         public Api_Client getApiService() {
             return new DummyApiClient();

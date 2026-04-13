@@ -109,33 +109,7 @@ public class OrderManager {
 
         try {
             result = api.callApi("POST", "/trade/cancel", rgParams);
-
-            if (result == null) {
-                Log.e("KTrader", "[OrderManager] cancelOrder API 응답이 null");
-                LogInfoFormatter.logInfo(tag + " : " + "/trade/cancel : null");
-                sendErrorCard("API 오류", ERR_API_001.getDescription(), "/trade/cancel", "NULL_RESPONSE", "API 응답이 null입니다");
-                return false;
-            }
-
-            // 상세한 로깅 추가
-            Log.d("KTrader", "[OrderManager] cancelOrder API 응답: " + result.toString());
-
-            if (result.get("status") instanceof Long) {
-                String logMessage = tag + " : " + "/trade/cancel : " + result.toString();
-                Log.e("KTrader", "[OrderManager] " + logMessage);
-                LogInfoFormatter.logInfo(logMessage);
-                sendErrorCard("API 오류", ERR_API_001.getDescription(), "/trade/cancel", "INVALID_STATUS_TYPE", result.toString());
-                return false;
-            }
-
-            String status = (String) result.get("status");
-            if (!status.equals("0000")) {
-                String logMessage = tag + " : " + "/trade/cancel : " + result.toString();
-                Log.e("KTrader", "[OrderManager] " + logMessage);
-                LogInfoFormatter.logInfo(logMessage);
-                LogInfoFormatter.logInfo(tag + " : API 오류 상세 - Status: " + status + ", Message: " + result.get("message"));
-                String serverMessage = (String) result.get("message");
-                sendErrorCard("API 오류", ERR_API_001.getDescription(), "/trade/cancel", status, serverMessage);
+            if (!hasValidApiStatus(result, tag, "/trade/cancel", "API 오류", ERR_API_001.getDescription())) {
                 return false;
             }
 
@@ -300,29 +274,7 @@ public class OrderManager {
 
         try {
             result = api.callApi("POST", "/trade/place", rgParams);
-
-            if (result == null) {
-                LogInfoFormatter.logInfo(tag + " : " + "/trade/place : null");
-                Log.d("KTrader", "Order " + "/trade/place : null");
-                sendErrorCard("API Error", ERR_API_005.getDescription(), "/trade/place", "NULL_RESPONSE", "API 응답이 null입니다");
-                return null;
-            }
-
-            if (result.get("status") instanceof Long) {
-                String logMessage = tag + " : " + "/trade/place : " + result.toString();
-                LogInfoFormatter.logInfo(logMessage);
-                sendErrorCard("API Error", ERR_API_005.getDescription(), "/trade/place", "INVALID_STATUS_TYPE", result.toString());
-                Log.d("KTrader", "Order " + logMessage);
-                return null;
-            }
-
-            String status = (String) result.get("status");
-            if (!status.equals("0000")) {
-                String logMessage = tag + " : " + "/trade/place : " + result.toString();
-                LogInfoFormatter.logInfo(logMessage);
-                LogInfoFormatter.logInfo(tag + " : API 오류 상세 - Status: " + status + ", Message: " + result.get("message"));
-                String serverMessage = (String) result.get("message");
-                sendErrorCard("API Error", ERR_API_005.getDescription(), "/trade/place", status, serverMessage);
+            if (!hasValidApiStatus(result, tag, "/trade/place", "API Error", ERR_API_005.getDescription())) {
                 return null;
             }
         } catch (Exception e) {
@@ -481,32 +433,7 @@ public class OrderManager {
                 result = api.callApi("POST", "/trade/market_sell", rgParams);
                 
             Log.d("KTrader", "[OrderManager] API 호출 완료 - 결과: " + (result != null ? "성공" : "실패"));
-
-            if (result == null) {
-                Log.e("KTrader", "[OrderManager] API 응답이 null");
-                LogInfoFormatter.logInfo(tag + " : " + "/trade/market_(buy/sell) : null");
-                sendErrorCard("API Error", ERR_API_006.getDescription(), endpoint, "NULL_RESPONSE", "API 응답이 null입니다");
-                return null;
-            }
-            
-            Log.d("KTrader", "[OrderManager] API 응답: " + result.toString());
-
-            if (result.get("status") instanceof Long) {
-                String logMessage = tag + " : " + "/trade/market_(buy/sell)1 : " + result.toString();
-                LogInfoFormatter.logInfo(logMessage);
-                sendErrorCard("API Error", ERR_API_006.getDescription(), endpoint, "INVALID_STATUS_TYPE", result.toString());
-                return null;
-            }
-
-            // {"message":"잠시 후 이용해 주십시오.[9900]","status":"5600"}
-            String status = (String) result.get("status");
-            if (!status.equals("0000")) {
-                String logMessage = tag + " : " + "/trade/market_(buy/sell)2 : " + result.toString();
-                Log.e("KTrader", "[OrderManager] " + logMessage);
-                LogInfoFormatter.logInfo(logMessage);
-                LogInfoFormatter.logInfo(tag + " : API 오류 상세 - Status: " + status + ", Message: " + result.get("message"));
-                String serverMessage = (String) result.get("message");
-                sendErrorCard("API Error", ERR_API_006.getDescription(), endpoint, status, serverMessage);
+            if (!hasValidApiStatus(result, tag, endpoint, "API Error", ERR_API_006.getDescription())) {
                 return null;
             }
             
@@ -761,6 +688,34 @@ public class OrderManager {
         } else {
             return "BTC"; // 기본값
         }
+    }
+
+    private boolean hasValidApiStatus(JSONObject result, String tag, String endpoint, String errorType, String errorDescription) {
+        if (result == null) {
+            LogInfoFormatter.logInfo(tag + " : " + endpoint + " : null");
+            sendErrorCard(errorType, errorDescription, endpoint, "NULL_RESPONSE", "API 응답이 null입니다");
+            return false;
+        }
+
+        Log.d("KTrader", "[OrderManager] API 응답 (" + endpoint + "): " + result.toString());
+
+        if (result.get("status") instanceof Long) {
+            String logMessage = tag + " : " + endpoint + " : " + result;
+            LogInfoFormatter.logInfo(logMessage);
+            sendErrorCard(errorType, errorDescription, endpoint, "INVALID_STATUS_TYPE", result.toString());
+            return false;
+        }
+
+        String status = String.valueOf(result.get("status"));
+        if (!"0000".equals(status)) {
+            String serverMessage = result.get("message") != null ? result.get("message").toString() : "unknown error";
+            LogInfoFormatter.logInfo(tag + " : " + endpoint + " : " + result);
+            LogInfoFormatter.logInfo(tag + " : API 오류 상세 - Status: " + status + ", Message: " + serverMessage);
+            sendErrorCard(errorType, errorDescription, endpoint, status, serverMessage);
+            return false;
+        }
+
+        return true;
     }
     
     private void sendErrorCard(String errorType, String errorMessage, String apiEndpoint, String errorCode, String serverErrorMessage) {
