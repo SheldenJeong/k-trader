@@ -97,6 +97,7 @@ public class MainPage extends Fragment {
     // 실시간 관찰을 위한 필드들
     private CoinPriceInfoRepository coinPriceInfoRepository;
     private TransactionInfoRepository transactionInfoRepository;
+    private TransactionCardBinder transactionCardBinder;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable refreshRunnable = new Runnable() {
@@ -133,6 +134,15 @@ public class MainPage extends Fragment {
         textLastBuyPriceCard = layout.findViewById(R.id.textLastBuyPriceCard);
         textLastSellPriceCard = layout.findViewById(R.id.textLastSellPriceCard);
         textNextBuyPriceCard = layout.findViewById(R.id.textNextBuyPriceCard);
+        transactionCardBinder = new TransactionCardBinder(
+                textCoinKwValueCard,
+                textEstimatedBalanceCard,
+                textTotalBalanceCard,
+                textTransactionTimeCard,
+                textLastBuyPriceCard,
+                textLastSellPriceCard,
+                textNextBuyPriceCard
+        );
         
         // btnPreference = layout.findViewById(R.id.imageButtonPreference); // App bar 메뉴로 이동
         tabLayout = layout.findViewById(R.id.tabLayout);
@@ -1148,61 +1158,22 @@ public class MainPage extends Fragment {
      * 트랜잭션 카드 UI 업데이트 (잔고/예상잔고/총합)
      */
     private void updateTransactionCardUi(String coinKwValue, String estimatedBalance) {
-        if (textCoinKwValueCard == null || textEstimatedBalanceCard == null || textTotalBalanceCard == null) {
-            Log.w("KTrader", "[MainPage] Transaction card TextViews are null");
+        if (transactionCardBinder == null) {
+            Log.w("KTrader", "[MainPage] transactionCardBinder is null");
             return;
         }
-
-        if (coinKwValue != null && !"".equals(coinKwValue)) {
-            textCoinKwValueCard.setText(coinKwValue);
-        }
-        if (estimatedBalance != null && !"".equals(estimatedBalance)) {
-            textEstimatedBalanceCard.setText(estimatedBalance);
-        }
-
-        String total = calculateTotalBalanceSafe(
-                textCoinKwValueCard.getText().toString(),
-                textEstimatedBalanceCard.getText().toString()
-        );
-        textTotalBalanceCard.setText(total);
-        Log.d("KTrader", "[MainPage] Transaction card updated: coin=" + textCoinKwValueCard.getText() + ", est=" + textEstimatedBalanceCard.getText() + ", total=" + total);
+        transactionCardBinder.updateAmounts(coinKwValue, estimatedBalance);
     }
 
     /**
      * 트랜잭션 카드 UI 메타 업데이트 (업데이트 시간/마지막 매수/마지막 매도/다음 매수)
      */
     private void updateTransactionCardMeta(String transactionTime, String lastBuyPrice, String lastSellPrice, String nextBuyPrice) {
-        if (textTransactionTimeCard != null && transactionTime != null && !transactionTime.isEmpty()) {
-            textTransactionTimeCard.setText(transactionTime);
+        if (transactionCardBinder == null) {
+            Log.w("KTrader", "[MainPage] transactionCardBinder is null");
+            return;
         }
-        if (textLastBuyPriceCard != null && lastBuyPrice != null && !lastBuyPrice.isEmpty()) {
-            textLastBuyPriceCard.setText(lastBuyPrice);
-        }
-        if (textLastSellPriceCard != null && lastSellPrice != null && !lastSellPrice.isEmpty()) {
-            textLastSellPriceCard.setText(lastSellPrice);
-        }
-        if (textNextBuyPriceCard != null && nextBuyPrice != null && !nextBuyPrice.isEmpty()) {
-            textNextBuyPriceCard.setText(nextBuyPrice);
-        }
-        Log.d("KTrader", "[MainPage] Transaction card meta updated: time=" + (transactionTime == null ? "" : transactionTime)
-                + ", lastBuy=" + (lastBuyPrice == null ? "" : lastBuyPrice)
-                + ", lastSell=" + (lastSellPrice == null ? "" : lastSellPrice)
-                + ", nextBuy=" + (nextBuyPrice == null ? "" : nextBuyPrice));
-    }
-
-    private String calculateTotalBalanceSafe(String coinKwValue, String estimatedBalance) {
-        try {
-            String coinKwNum = coinKwValue.replaceAll("[^0-9,]", "").replace(",", "");
-            String estimatedNum = estimatedBalance.replaceAll("[^0-9,]", "").replace(",", "");
-
-            long coinValue = coinKwNum.isEmpty() ? 0 : Long.parseLong(coinKwNum);
-            long estimated = estimatedNum.isEmpty() ? 0 : Long.parseLong(estimatedNum);
-            long total = coinValue + estimated;
-            return String.format(java.util.Locale.getDefault(), "₩%,d", total);
-        } catch (Exception e) {
-            Log.e("KTrader", "[MainPage] Error calculating total balance", e);
-            return "₩0";
-        }
+        transactionCardBinder.updateMeta(transactionTime, lastBuyPrice, lastSellPrice, nextBuyPrice);
     }
 
     /**
@@ -1484,6 +1455,87 @@ public class MainPage extends Fragment {
             Log.d("KTrader", "[MainPage] Updated last sync time in Appbar");
         } else {
             Log.w("KTrader", "[MainPage] Cannot update last sync time - mainActivity is null");
+        }
+    }
+
+    private static class TransactionCardBinder {
+        private final TextView textCoinKwValueCard;
+        private final TextView textEstimatedBalanceCard;
+        private final TextView textTotalBalanceCard;
+        private final TextView textTransactionTimeCard;
+        private final TextView textLastBuyPriceCard;
+        private final TextView textLastSellPriceCard;
+        private final TextView textNextBuyPriceCard;
+
+        TransactionCardBinder(TextView textCoinKwValueCard,
+                              TextView textEstimatedBalanceCard,
+                              TextView textTotalBalanceCard,
+                              TextView textTransactionTimeCard,
+                              TextView textLastBuyPriceCard,
+                              TextView textLastSellPriceCard,
+                              TextView textNextBuyPriceCard) {
+            this.textCoinKwValueCard = textCoinKwValueCard;
+            this.textEstimatedBalanceCard = textEstimatedBalanceCard;
+            this.textTotalBalanceCard = textTotalBalanceCard;
+            this.textTransactionTimeCard = textTransactionTimeCard;
+            this.textLastBuyPriceCard = textLastBuyPriceCard;
+            this.textLastSellPriceCard = textLastSellPriceCard;
+            this.textNextBuyPriceCard = textNextBuyPriceCard;
+        }
+
+        void updateAmounts(String coinKwValue, String estimatedBalance) {
+            if (textCoinKwValueCard == null || textEstimatedBalanceCard == null || textTotalBalanceCard == null) {
+                Log.w("KTrader", "[MainPage] Transaction card TextViews are null");
+                return;
+            }
+
+            if (coinKwValue != null && !"".equals(coinKwValue)) {
+                textCoinKwValueCard.setText(coinKwValue);
+            }
+            if (estimatedBalance != null && !"".equals(estimatedBalance)) {
+                textEstimatedBalanceCard.setText(estimatedBalance);
+            }
+
+            String total = calculateTotalBalanceSafe(
+                    textCoinKwValueCard.getText().toString(),
+                    textEstimatedBalanceCard.getText().toString()
+            );
+            textTotalBalanceCard.setText(total);
+            Log.d("KTrader", "[MainPage] Transaction card updated: coin=" + textCoinKwValueCard.getText() + ", est=" + textEstimatedBalanceCard.getText() + ", total=" + total);
+        }
+
+        void updateMeta(String transactionTime, String lastBuyPrice, String lastSellPrice, String nextBuyPrice) {
+            if (textTransactionTimeCard != null && transactionTime != null && !transactionTime.isEmpty()) {
+                textTransactionTimeCard.setText(transactionTime);
+            }
+            if (textLastBuyPriceCard != null && lastBuyPrice != null && !lastBuyPrice.isEmpty()) {
+                textLastBuyPriceCard.setText(lastBuyPrice);
+            }
+            if (textLastSellPriceCard != null && lastSellPrice != null && !lastSellPrice.isEmpty()) {
+                textLastSellPriceCard.setText(lastSellPrice);
+            }
+            if (textNextBuyPriceCard != null && nextBuyPrice != null && !nextBuyPrice.isEmpty()) {
+                textNextBuyPriceCard.setText(nextBuyPrice);
+            }
+            Log.d("KTrader", "[MainPage] Transaction card meta updated: time=" + (transactionTime == null ? "" : transactionTime)
+                    + ", lastBuy=" + (lastBuyPrice == null ? "" : lastBuyPrice)
+                    + ", lastSell=" + (lastSellPrice == null ? "" : lastSellPrice)
+                    + ", nextBuy=" + (nextBuyPrice == null ? "" : nextBuyPrice));
+        }
+
+        private String calculateTotalBalanceSafe(String coinKwValue, String estimatedBalance) {
+            try {
+                String coinKwNum = coinKwValue.replaceAll("[^0-9,]", "").replace(",", "");
+                String estimatedNum = estimatedBalance.replaceAll("[^0-9,]", "").replace(",", "");
+
+                long coinValue = coinKwNum.isEmpty() ? 0 : Long.parseLong(coinKwNum);
+                long estimated = estimatedNum.isEmpty() ? 0 : Long.parseLong(estimatedNum);
+                long total = coinValue + estimated;
+                return String.format(java.util.Locale.getDefault(), "₩%,d", total);
+            } catch (Exception e) {
+                Log.e("KTrader", "[MainPage] Error calculating total balance", e);
+                return "₩0";
+            }
         }
     }
 }
