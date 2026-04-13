@@ -468,28 +468,8 @@ public class OrderManager {
             // Bithumb API 문서에 따르면 currency 파라미터를 설정하여 특정 코인 또는 모든 코인 정보를 가져올 수 있습니다
             // https://apidocs.bithumb.com/v1.2.0/reference/%EB%B3%B4%EC%9C%A0%EC%9E%90%EC%82%B0-%EC%A1%B0%ED%9A%8C
             result = api.callApi("POST", "/info/balance", params);
-
-            if (result == null) {
-                LogInfoFormatter.logInfo(tag + " : " + "/info/balance : null");
-                saveApiStats("/info/balance", "POST", 0, System.currentTimeMillis() - startTime, false, "null response");
-                sendErrorCard("API Error", "Balance API 응답이 null입니다", "/info/balance", "NULL_RESPONSE", "API 응답이 null입니다");
-                throw new Exception("returns null");
-            }
-
-            if (result.get("status") instanceof Long) {
-                LogInfoFormatter.logInfo(tag + " : " + "/info/balance : " + result.toString());
-                saveApiStats("/info/balance", "POST", 0, System.currentTimeMillis() - startTime, false, "invalid status type");
-                sendErrorCard("API Error", "Balance API 상태 타입 오류", "/info/balance", "INVALID_STATUS_TYPE", result.toString());
-                throw new Exception("returns null");
-            }
-
-            String status = (String) result.get("status");
-            
-            if (!status.equals("0000")) {
-                LogInfoFormatter.logInfo(tag + " : " + "/info/balance : " + result.toString());
-                saveApiStats("/info/balance", "POST", Integer.parseInt(status), System.currentTimeMillis() - startTime, false, (String) result.get("message"));
-                String serverMessage = (String) result.get("message");
-                sendErrorCard("API Error", "Balance API 오류", "/info/balance", status, serverMessage);
+            if (!hasValidApiStatus(result, tag, "/info/balance", "API Error", "Balance API 오류")) {
+                saveApiStats("/info/balance", "POST", 0, System.currentTimeMillis() - startTime, false, "invalid response");
                 throw new Exception("returns null");
             }
             
@@ -514,24 +494,8 @@ public class OrderManager {
 
         try {
             result = api.callApi("GET", "/public/orderbook/" + getCurrentCoinType(), null);
-
-            if (result == null) {
-                LogInfoFormatter.logInfo(tag + " : " + "/public/orderbook/" + getCurrentCoinType() + " : null");
-                sendErrorCard("API Error", "Orderbook API 응답이 null입니다", "/public/orderbook/" + getCurrentCoinType(), "NULL_RESPONSE", "API 응답이 null입니다");
-                throw new Exception("returns null");
-            }
-
-            if (result.get("status") instanceof Long) {
-                LogInfoFormatter.logInfo(tag + " : " + "/public/orderbook/" + getCurrentCoinType() + " : " + result.toString());
-                sendErrorCard("API Error", "Orderbook API 상태 타입 오류", "/public/orderbook/" + getCurrentCoinType(), "INVALID_STATUS_TYPE", result.toString());
-                throw new Exception("returns null");
-            }
-
-            if (!((String) result.get("status")).equals("0000")) {
-                // ex ) {"message":"Database Fail","status":"5400"}
-                LogInfoFormatter.logInfo(tag + " : " + "/public/orderbook/" + getCurrentCoinType() + " : " + result.toString());
-                String serverMessage = (String) result.get("message");
-                sendErrorCard("API Error", "Orderbook API 오류", "/public/orderbook/" + getCurrentCoinType(), (String) result.get("status"), serverMessage);
+            String endpoint = "/public/orderbook/" + getCurrentCoinType();
+            if (!hasValidApiStatus(result, tag, endpoint, "API Error", "Orderbook API 오류")) {
                 throw new Exception("returns null");
             }
         } catch (Exception e) {
@@ -551,28 +515,8 @@ public class OrderManager {
 
         try {
             result = api.callApi("GET", "/public/ticker/" + getCurrentCoinType(), null);
-
-            if (result == null) {
-                LogInfoFormatter.logInfo(tag + " : " + "/public/ticker : null");
-                saveApiStats("/public/ticker", "GET", 0, System.currentTimeMillis() - startTime, false, "null response");
-                sendErrorCard("API Error", "Ticker API 응답이 null입니다", "/public/ticker/" + getCurrentCoinType(), "NULL_RESPONSE", "API 응답이 null입니다");
-                throw new Exception("returns null");
-            }
-
-            if (result.get("status") instanceof Long) {
-                LogInfoFormatter.logInfo(tag + " : " + "/public/ticker : " + result.toString());
-                saveApiStats("/public/ticker", "GET", 0, System.currentTimeMillis() - startTime, false, "invalid status type");
-                sendErrorCard("API Error", "Ticker API 상태 타입 오류", "/public/ticker/" + getCurrentCoinType(), "INVALID_STATUS_TYPE", result.toString());
-                throw new Exception("returns null");
-            }
-
-            String status = (String) result.get("status");
-            
-            if (!status.equals("0000")) {
-                LogInfoFormatter.logInfo(tag + " : " + "/public/ticker : " + result.toString());
-                saveApiStats("/public/ticker", "GET", Integer.parseInt(status), System.currentTimeMillis() - startTime, false, (String) result.get("message"));
-                String serverMessage = (String) result.get("message");
-                sendErrorCard("API Error", "Ticker API 오류", "/public/ticker/" + getCurrentCoinType(), status, serverMessage);
+            if (!hasValidApiStatus(result, tag, "/public/ticker/" + getCurrentCoinType(), "API Error", "Ticker API 오류")) {
+                saveApiStats("/public/ticker", "GET", 0, System.currentTimeMillis() - startTime, false, "invalid response");
                 throw new Exception("returns null");
             }
             
@@ -602,25 +546,10 @@ public class OrderManager {
 
             result = api.callApi("POST", "/info/orders", param);
 
-            if (result == null) {
-                LogInfoFormatter.logInfo(tag + " : " + "/info/orders : 1 : null");
+            if (isNoActiveOrderResponse(result)) {
                 throw new Exception("returns null");
             }
-
-            if (result.get("status") instanceof Long) {
-                LogInfoFormatter.logInfo(tag + " : " + "/info/orders : 2 : " + result.toString());
-                throw new Exception("returns null");
-            }
-
-            if (((String) result.get("status")).equals("5600")) {
-                if (((String) result.get("message")).equals("거래 진행중인 내역이 존재하지 않습니다.")) {
-                    // workaround
-                    throw new Exception("returns null");
-                }
-            }
-
-            if (!((String) result.get("status")).equals("0000")) {
-                LogInfoFormatter.logInfo(tag + " : " + "/info/orders : 3 : " + result.toString());
+            if (!hasValidApiStatus(result, tag, "/info/orders", "API Error", ERR_API_007.getDescription())) {
                 throw new Exception("returns null");
             }
         } catch (Exception e) {
@@ -646,19 +575,7 @@ public class OrderManager {
             rgParams.put("payment_currency", "KRW");
 
             result = api.callApi("POST", "/info/user_transactions", rgParams);
-
-            if (result == null) {
-                LogInfoFormatter.logInfo(tag + " : " + "/info/user_transactions : null");
-                throw new Exception("returns null");
-            }
-
-            if (result.get("status") instanceof Long) {
-                LogInfoFormatter.logInfo(tag + " : " + "/info/user_transactions : " + result.toString());
-                throw new Exception("returns null");
-            }
-
-            if (!((String) result.get("status")).equals("0000")) {
-                LogInfoFormatter.logInfo(tag + " : " + "/info/user_transactions : " + result.toString());
+            if (!hasValidApiStatus(result, tag, "/info/user_transactions", "API Error", ERR_API_008.getDescription())) {
                 throw new Exception("returns null");
             }
         } catch (Exception e) {
@@ -716,6 +633,18 @@ public class OrderManager {
         }
 
         return true;
+    }
+
+    private boolean isNoActiveOrderResponse(JSONObject result) {
+        if (result == null || result.get("status") == null) {
+            return false;
+        }
+        String status = String.valueOf(result.get("status"));
+        if (!"5600".equals(status)) {
+            return false;
+        }
+        String message = result.get("message") != null ? result.get("message").toString() : "";
+        return "거래 진행중인 내역이 존재하지 않습니다.".equals(message);
     }
     
     private void sendErrorCard(String errorType, String errorMessage, String apiEndpoint, String errorCode, String serverErrorMessage) {

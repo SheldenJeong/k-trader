@@ -19,7 +19,7 @@
 - [x] API 네트워크 예외 전파 방어(`Api_Client`)
 - [x] 리스트 스냅샷 기반 갱신(`PlacedOrderPage`, `ProcessedOrderPage`, `ListviewAdapter`)
 - [x] `OrderManager` API 응답 검증 로직 공통화(`hasValidApiStatus`)
-- [ ] `OrderManager` 전 메서드에 공통 응답 검증 적용
+- [x] `OrderManager` 전 메서드에 공통 응답 검증 적용
 
 완료 기준:
 - 기존 주요 크래시(UnknownHost/IndexOutOfBounds/ConcurrentModification) 재현되지 않을 것
