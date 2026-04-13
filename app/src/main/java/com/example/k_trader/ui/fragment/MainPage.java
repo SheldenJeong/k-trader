@@ -53,7 +53,6 @@ public class MainPage extends Fragment {
 
     private static final String KEY_TRADING_STATE = "KEY_TRADING_STATE";
     public static final String BROADCAST_CARD_DATA = "TRADE_CARD_DATA";
-    public static final String BROADCAST_ERROR_CARD = "TRADE_ERROR_CARD";
     public static final String BROADCAST_TRANSACTION_DATA = "com.example.k_trader.TRANSACTION_DATA_UPDATED";
 
     private android.support.design.widget.FloatingActionButton fabTradingToggle;
@@ -86,9 +85,6 @@ public class MainPage extends Fragment {
     
     // UI 상태 캐시 (static으로 변경하여 Fragment 재생성 시에도 유지)
     private static String cachedCoinType;
-    private static String cachedCurrentPrice;
-    private static String cachedPriceChange;
-    private static String cachedActiveOrders;
     private static boolean isDataLoaded = false;
     
     // BroadcastReceiver for card data updates
@@ -652,10 +648,6 @@ public class MainPage extends Fragment {
     }
 
     public static class TransactionCard {
-        public static final String BROADCAST_CARD_DATA = "TRADE_CARD_DATA";
-        public static final String BROADCAST_ERROR_CARD = "TRADE_ERROR_CARD";
-        public static final String BROADCAST_TRANSACTION_DATA = "com.example.k_trader.TRANSACTION_DATA_UPDATED";
-
         public String transactionTime;
         public String coinKwValue;        // 코인 원화 잔고
         public String estimatedBalance;   // 예상잔고
@@ -929,23 +921,13 @@ public class MainPage extends Fragment {
      * 코인 데이터 새로고침 (외부에서 호출 가능)
      */
     public void refreshCoinData() {
-        Log.d("KTrader", "[MainPage] refreshCoinData() called - Thread: " + Thread.currentThread().getName());
-        Log.d("KTrader", "[MainPage] refreshCoinData() - getActivity(): " + (getActivity() != null ? "not null" : "null"));
-        Log.d("KTrader", "[MainPage] refreshCoinData() - getContext(): " + (getContext() != null ? "not null" : "null"));
-        
         if (getActivity() != null) {
-            Log.d("KTrader", "[MainPage] refreshCoinData() - scheduling UI thread task");
             getActivity().runOnUiThread(() -> {
-                Log.d("KTrader", "[MainPage] refreshCoinData() - UI thread task started");
-                Log.d("KTrader", "[MainPage] refreshCoinData() - calling updateCoinInfo()");
-                
                 // 코인 타입만 업데이트 (가격과 활성 거래 수는 이전 값 유지)
                 updateCoinTypeOnly();
                 
-                Log.d("KTrader", "[MainPage] refreshCoinData() - calling fetchLatestCoinData()");
                 // API에서 최신 데이터 가져오기
                 fetchLatestCoinData();
-                Log.d("KTrader", "[MainPage] refreshCoinData() - UI thread task completed");
             });
         } else {
             Log.w("KTrader", "[MainPage] refreshCoinData() - getActivity() is null, cannot proceed");
@@ -956,7 +938,6 @@ public class MainPage extends Fragment {
      * 코인 타입만 업데이트 (새로고침 시 깜박임 방지)
      */
     private void updateCoinTypeOnly() {
-        Log.d("KTrader", "[MainPage] updateCoinTypeOnly() called");
         if (textCoinType == null) {
             Log.w("KTrader", "[MainPage] updateCoinTypeOnly() - textCoinType is null, returning");
             return;
@@ -965,16 +946,12 @@ public class MainPage extends Fragment {
         // SharedPreferences에서 직접 코인 타입 읽어오기
         android.content.SharedPreferences sharedPreferences = getContext().getSharedPreferences("settings", android.content.Context.MODE_PRIVATE);
         String coinType = sharedPreferences.getString(com.example.k_trader.base.GlobalSettings.COIN_TYPE_KEY_NAME, com.example.k_trader.base.GlobalSettings.COIN_TYPE_DEFAULT_VALUE);
-        
-        Log.d("KTrader", "[MainPage] Reading coin type from preferences: " + coinType);
-        
+
         // GlobalSettings도 업데이트
         com.example.k_trader.base.GlobalSettings.getInstance().setCoinType(coinType);
         
         // 코인 타입만 표시 (가격과 활성 거래 수는 이전 값 유지)
         textCoinType.setText(coinType);
-        
-        Log.d("KTrader", "[MainPage] Coin type updated, keeping previous price and active orders values");
     }
     
     /**
@@ -1012,16 +989,12 @@ public class MainPage extends Fragment {
      */
     private void fetchCurrentPriceFromApi() {
         try {
-            Log.d("KTrader", "[MainPage] Starting direct API call for price and change data...");
-            
             // OrderManager를 통해 가격과 등락률 정보 가져오기
             OrderManager orderManager = new com.example.k_trader.base.OrderManager();
             
             // 백그라운드에서 API 호출
             new Thread(() -> {
                 try {
-                    Log.d("KTrader", "[MainPage] Calling OrderManager APIs...");
-                    
                     // 현재 가격 가져오기
                     JSONObject priceData = orderManager.getCurrentPrice("refresh");
                     int currentPrice = 0;
@@ -1032,7 +1005,6 @@ public class MainPage extends Fragment {
                             String priceStr = (String) firstBid.get("price");
                             if (priceStr != null) {
                                 currentPrice = (int) Double.parseDouble(priceStr);
-                                Log.d("KTrader", "[MainPage] Got current price: " + currentPrice);
                             }
                         }
                     }
@@ -1050,7 +1022,6 @@ public class MainPage extends Fragment {
                             // 24시간 등락률
                             if (data.containsKey("fluctate_rate_24H")) {
                                 String rawDailyChange = data.get("fluctate_rate_24H").toString();
-                                Log.d("KTrader", "[MainPage] Raw daily change: " + rawDailyChange);
                                 try {
                                     double changeValue = Double.parseDouble(rawDailyChange);
                                     if (changeValue >= 0) {
@@ -1058,12 +1029,9 @@ public class MainPage extends Fragment {
                                     } else {
                                         dailyChange = String.format("%.2f%%", changeValue);
                                     }
-                                    Log.d("KTrader", "[MainPage] Formatted daily change: " + dailyChange);
                                 } catch (NumberFormatException e) {
                                     Log.e("KTrader", "[MainPage] Error parsing daily change: " + rawDailyChange, e);
                                 }
-                            } else {
-                                Log.w("KTrader", "[MainPage] fluctate_rate_24H not found, using default");
                             }
                         }
                     } catch (Exception e) {
@@ -1086,11 +1054,6 @@ public class MainPage extends Fragment {
                             } else {
                                 hourlyChange = String.format("%.2f%%", variationRate);
                             }
-                            
-                            Log.d("KTrader", "[MainPage] Calculated hourly change from PriceQueueManager: " + hourlyChange);
-                            Log.d("KTrader", "[MainPage] PriceQueue status: " + priceManager.getQueueStatus());
-                        } else {
-                            Log.w("KTrader", "[MainPage] Not enough price data for hourly change calculation, using default");
                         }
                     } catch (Exception e) {
                         Log.e("KTrader", "[MainPage] Error calculating hourly change from PriceQueueManager", e);
@@ -1107,21 +1070,13 @@ public class MainPage extends Fragment {
                             if (textCurrentPrice != null && finalCurrentPrice > 0) {
                                 String formattedPrice = String.format(java.util.Locale.getDefault(), "₩%,d", finalCurrentPrice);
                                 textCurrentPrice.setText(formattedPrice);
-                                cachedCurrentPrice = formattedPrice; // 캐시 저장
-                                
                                 // Room DB에 캐시 저장
                                 saveCoinPriceToDB(formattedPrice, finalHourlyChange);
-                                
-                                Log.d("KTrader", "[MainPage] Updated current price: " + formattedPrice);
-                            } else if (finalCurrentPrice <= 0) {
-                                Log.d("KTrader", "[MainPage] Skipping price update - current price is 0 or invalid");
                             }
                             
                             // 1시간 등락폭 업데이트 (CoinInfo용)
                             if (textPriceChange != null) {
                                 textPriceChange.setText(finalHourlyChange);
-                                cachedPriceChange = finalHourlyChange; // 캐시 저장
-                                
                                 // 등락폭에 따라 색상 변경
                                 if (finalHourlyChange.startsWith("+")) {
                                     textPriceChange.setTextColor(getResources().getColor(android.R.color.holo_red_dark));
@@ -1130,11 +1085,9 @@ public class MainPage extends Fragment {
                                 } else {
                                     textPriceChange.setTextColor(getResources().getColor(android.R.color.black));
                                 }
-                                Log.d("KTrader", "[MainPage] Updated hourly price change (1H): " + finalHourlyChange);
                             }
                             
                             // 마지막 동기화 시간 업데이트
-                            Log.d("KTrader", "[MainPage] About to call updateLastSyncTime()");
                             updateLastSyncTime();
                         });
                     }
@@ -1180,7 +1133,6 @@ public class MainPage extends Fragment {
      * 코인 정보 업데이트
      */
     private void updateCoinInfo() {
-        Log.d("KTrader", "[MainPage] updateCoinInfo() called");
         if (textCoinType == null) {
             Log.w("KTrader", "[MainPage] updateCoinInfo() - textCoinType is null, returning");
             return;
@@ -1189,9 +1141,7 @@ public class MainPage extends Fragment {
         // SharedPreferences에서 직접 코인 타입 읽어오기
         android.content.SharedPreferences sharedPreferences = getContext().getSharedPreferences("settings", android.content.Context.MODE_PRIVATE);
         String coinType = sharedPreferences.getString(com.example.k_trader.base.GlobalSettings.COIN_TYPE_KEY_NAME, com.example.k_trader.base.GlobalSettings.COIN_TYPE_DEFAULT_VALUE);
-        
-        Log.d("KTrader", "[MainPage] Reading coin type from preferences: " + coinType);
-        
+
         // GlobalSettings도 업데이트
         com.example.k_trader.base.GlobalSettings.getInstance().setCoinType(coinType);
         
@@ -1210,12 +1160,7 @@ public class MainPage extends Fragment {
                 );
         }
         
-        // 현재 가격과 활성 거래 수는 이전 값을 유지 (깜박임 방지)
-        // API 호출로 실제 값이 업데이트될 때까지 기존 값 유지
-        Log.d("KTrader", "[MainPage] Keeping previous values to prevent flickering");
-        
         // 활성 거래 수는 DB에서 가져오기
-        Log.d("KTrader", "[MainPage] About to call updateActiveOrdersCount()");
         updateActiveOrdersCount();
     }
     
@@ -1400,7 +1345,6 @@ public class MainPage extends Fragment {
         
         String newText = "S" + newSell + " : B" + newBuy;
         textActiveOrders.setText(newText);
-        cachedActiveOrders = newText; // 캐시 저장
         Log.d("KTrader", "[MainPage] Updated active orders display: " + newText);
     }
     

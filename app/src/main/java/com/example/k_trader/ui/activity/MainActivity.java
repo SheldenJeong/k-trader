@@ -22,9 +22,6 @@ import android.widget.Toast;
 
 import com.example.k_trader.R;
 import com.example.k_trader.ui.fragment.MainPage;
-import com.example.k_trader.ui.fragment.PlacedOrderPage;
-import com.example.k_trader.ui.fragment.ProcessedOrderPage;
-import com.example.k_trader.ui.fragment.TransactionLogPage;
 import com.example.k_trader.base.GlobalSettings;
 import com.example.k_trader.database.OrderRepository;
 import com.example.k_trader.dialog.ProgressDialogManager;
