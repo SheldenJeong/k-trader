@@ -10,6 +10,7 @@ import android.content.SharedPreferences;
 import com.example.k_trader.base.GlobalSettings;
 import com.example.k_trader.base.OrderManager;
 import com.example.k_trader.bitthumb.lib.Api_Client;
+import com.example.k_trader.service.TradeJobService;
 
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;

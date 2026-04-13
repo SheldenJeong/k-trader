@@ -4,6 +4,8 @@ import org.junit.Test;
 
 import static org.junit.Assert.*;
 
+import com.example.k_trader.ui.fragment.MainPage;
+
 public class MainPageTest {
     @Test
     public void getProfitPrice_isCorrect_million() throws Exception {
