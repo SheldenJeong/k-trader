@@ -30,6 +30,7 @@ import org.json.simple.JSONObject;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Locale;
+import java.util.Objects;
 
 import static com.example.k_trader.base.TradeDataManager.Status.PROCESSED;
 import static com.example.k_trader.base.TradeDataManager.Type.BUY;
@@ -58,16 +59,6 @@ public class ProcessedOrderPage extends Fragment {
 
     private TradeDataManager tradedataManager;
     private OrderManager orderManager;
-    private static ProcessedOrderPage instance;
-
-    private void ProcessedOrderPage() {}
-
-    public static ProcessedOrderPage getInstance() {
-        if (instance == null) {
-            instance = new ProcessedOrderPage();
-        }
-        return instance;
-    }
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -153,7 +144,7 @@ public class ProcessedOrderPage extends Fragment {
         buyTotal = 0;
         sellTotal = 0;
 
-        list.clear();
+        ArrayList<Listviewitem> newList = new ArrayList<>();
 
         // 리스트에 추가한다.
         for (TradeData data : tradedataManager.getList()) {
@@ -179,7 +170,7 @@ public class ProcessedOrderPage extends Fragment {
                     + " : " + (int)data.getFeeEvaluated();
 
             Listviewitem listItem = new Listviewitem(0, text);
-            list.add(listItem);
+            newList.add(listItem);
 //                                Log.d("KTrader", text);
 
             feeTotal += data.getFeeEvaluated();
@@ -191,6 +182,7 @@ public class ProcessedOrderPage extends Fragment {
             public void run() {
                 mainActivity.runOnUiThread(new Runnable() {
                     public void run() {
+                        list = new ArrayList<>(newList);
                         ListviewAdapter adapter = new ListviewAdapter(mainActivity.getApplicationContext(), R.layout.list_item, list);
                         listView.setAdapter(adapter);
 
@@ -235,7 +227,7 @@ public class ProcessedOrderPage extends Fragment {
                             return;
                         }
 
-                        if (dataArray.size() == 0) {
+                        if (dataArray.isEmpty()) {
                             condition = false;
                             break;
                         }
@@ -247,7 +239,7 @@ public class ProcessedOrderPage extends Fragment {
                             long processedTimeInMillis;
                             String date_string = (String) item.get("transfer_date");
                             if (date_string.length() == 13)
-                                processedTimeInMillis = Long.parseLong((String) item.get("transfer_date"));
+                                processedTimeInMillis = Long.parseLong((String) Objects.requireNonNull(item.get("transfer_date")));
                             else // micro second
                                 processedTimeInMillis = Long.parseLong((String) item.get("transfer_date")) / 1000;
 

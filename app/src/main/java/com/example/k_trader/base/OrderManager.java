@@ -154,11 +154,20 @@ public class OrderManager {
 
     public boolean cancelAllBuyOrders() {
         Api_Client api = tradeApiService.getApiService();
-        JSONObject result = api.callApi("POST", "/info/orders", null);
+        JSONObject result;
+        try {
+            result = api.callApi("POST", "/info/orders", null);
+        } catch (Exception e) {
+            Log.e("KTrader", "[OrderManager] /info/orders 호출 실패", e);
+            LogInfoFormatter.logInfo("전체취소 : /info/orders 호출 실패 : " + e.getMessage());
+            sendErrorCard("네트워크 오류", ERR_API_002.getDescription(), "/info/orders", "EXCEPTION", e.getMessage());
+            return false;
+        }
         int cancelCount = 0;
 
         if (result == null) {
             String logMessage = "/info/orders : null";
+            LogInfoFormatter.logInfo("전체취소 : " + logMessage);
             sendErrorCard("API 오류", ERR_API_002.getDescription());
             return false;
         }

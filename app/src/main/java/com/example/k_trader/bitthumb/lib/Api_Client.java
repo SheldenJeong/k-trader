@@ -199,7 +199,16 @@ public class Api_Client {
         String api_host = api_url + endpoint;
         HashMap<String, String> httpHeaders = getHttpHeaders(endpoint, rgParams);
 
-        rgResultDecode = request(api_host, method, rgParams, httpHeaders);
+        try {
+            rgResultDecode = request(api_host, method, rgParams, httpHeaders);
+        } catch (RuntimeException e) {
+            if (logger != null) {
+                logger.error("API request failed: " + method + " " + endpoint + " - " + e.getMessage(), e);
+            } else {
+                System.err.println("API request failed: " + method + " " + endpoint + " - " + e.getMessage());
+            }
+            return null;
+        }
 
         JSONParser jsonParser = new JSONParser();
         JSONObject jsonObject = null;

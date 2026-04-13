@@ -499,9 +499,13 @@ public class MainPage extends Fragment {
         // NetworkOnMainThreadException을 방지하기 위해 thread를 돌린다.
         Log.d("KTrader", "[MainPage] Canceling existing buy orders");
         new Thread(() -> {
-            OrderManager orderManager = new OrderManager();
-            orderManager.cancelAllBuyOrders();
-            Log.d("KTrader", "[MainPage] Existing buy orders canceled");
+            try {
+                OrderManager orderManager = new OrderManager();
+                boolean cancelled = orderManager.cancelAllBuyOrders();
+                Log.d("KTrader", "[MainPage] Existing buy orders canceled: " + cancelled);
+            } catch (Exception e) {
+                Log.e("KTrader", "[MainPage] Failed to cancel existing buy orders", e);
+            }
         }).start();
 
         // Foreground Service로 TradeJobService 시작
@@ -771,7 +775,7 @@ public class MainPage extends Fragment {
                     return placedOrderPage;
                 case 1:
                     if (processedOrderPage == null) {
-                        processedOrderPage = ProcessedOrderPage.getInstance();
+                        processedOrderPage = new ProcessedOrderPage();
                         fragments[position] = processedOrderPage;
                     }
                     return processedOrderPage;

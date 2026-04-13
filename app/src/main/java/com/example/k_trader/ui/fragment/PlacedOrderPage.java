@@ -162,7 +162,7 @@ public class PlacedOrderPage extends Fragment implements PopupMenu.OnMenuItemCli
         // NetworkOnMainThreadException을 방지하기 위해 thread를 돌린다.
         new Thread(() -> {
             OrderManager orderManager = new OrderManager();
-            placedOrderManager.clear();
+            TradeDataManager localPlacedOrderManager = new TradeDataManager();
 
             // 새로운 데이터를 담을 임시 리스트 생성
             ArrayList<Listviewitem> newList = new ArrayList<>();
@@ -179,7 +179,7 @@ public class PlacedOrderPage extends Fragment implements PopupMenu.OnMenuItemCli
                 for (int i = 0; i < dataArray.size(); i++) {
                     JSONObject item = (JSONObject) dataArray.get(i);
                     String id = (String) item.get("order_id");
-                    placedOrderManager.add(placedOrderManager.build()
+                    localPlacedOrderManager.add(localPlacedOrderManager.build()
                             .setType(orderManager.convertOrderType((String) item.get("type")))
                             .setStatus(PLACED)
                             .setId(id)
@@ -189,9 +189,9 @@ public class PlacedOrderPage extends Fragment implements PopupMenu.OnMenuItemCli
                 }
             }
 
-            int sellIndex = placedOrderManager.getSellCount();
+            int sellIndex = localPlacedOrderManager.getSellCount();
 
-            for (TradeData data : placedOrderManager.getList()) {
+            for (TradeData data : localPlacedOrderManager.getList()) {
                 String text;
                 Calendar cal = Calendar.getInstance();
                 cal.setTimeInMillis(data.getPlacedTime());
@@ -209,7 +209,7 @@ public class PlacedOrderPage extends Fragment implements PopupMenu.OnMenuItemCli
                 float baseUnits = (float) ((int) ((GlobalSettings.getInstance().getUnitPrice() / (double)data.getPrice()) * 10000) / 10000.0);
 
                 // merge가 필요하거나 down이 필요한 item은 다른 색깔로 보여준다.
-                if (data.getUnits() < (baseUnits / 2.0) || data.getUnits() > (baseUnits * 1.5) || placedOrderManager.getByPrice(SELL, data.getPrice()).size() > 1)
+                if (data.getUnits() < (baseUnits / 2.0) || data.getUnits() > (baseUnits * 1.5) || localPlacedOrderManager.getByPrice(SELL, data.getPrice()).size() > 1)
                     listItem.setBgColor(-2044724);
                 else if (data.getPrice() > (TradeJobService.currentPrice * 2 - 1000000)) {
                     // down 할 수 없는 가격대는 좀 더 진한 색으로 보여준다.
@@ -225,11 +225,7 @@ public class PlacedOrderPage extends Fragment implements PopupMenu.OnMenuItemCli
                 public void run() {
                     mainActivity.runOnUiThread(new Runnable() {
                         public void run() {
-                            // ⭐ 한 번에 새 데이터로 교체
-                            list.clear();
-                            list.addAll(newList);
-                            ListviewAdapter adapter1 = new ListviewAdapter(mainActivity.getApplicationContext(), R.layout.list_item, list);
-                            listView.setAdapter(adapter1);
+                            placedOrderManager = localPlacedOrderManager;
 
                             // sort by 적용
                             if (sortBy.equals(BY_PRICE)) {
@@ -241,8 +237,7 @@ public class PlacedOrderPage extends Fragment implements PopupMenu.OnMenuItemCli
                                     }
                                 };
 
-                                Collections.sort(list, noAsc);
-                                adapter1.notifyDataSetChanged();
+                                Collections.sort(newList, noAsc);
                             } else if (sortBy.equals(BY_TIME)) {
                                 Comparator<Listviewitem> noAsc = new Comparator<Listviewitem>() {
                                     @Override
@@ -252,9 +247,13 @@ public class PlacedOrderPage extends Fragment implements PopupMenu.OnMenuItemCli
                                     }
                                 };
 
-                                Collections.sort(list, noAsc);
-                                adapter1.notifyDataSetChanged();
+                                Collections.sort(newList, noAsc);
                             }
+
+                            // ⭐ 한 번에 새 데이터 스냅샷으로 교체
+                            list = new ArrayList<>(newList);
+                            ListviewAdapter adapter1 = new ListviewAdapter(mainActivity.getApplicationContext(), R.layout.list_item, list);
+                            listView.setAdapter(adapter1);
                         }
                     });
                 }
@@ -512,255 +511,243 @@ public class PlacedOrderPage extends Fragment implements PopupMenu.OnMenuItemCli
     
     @Override
     public boolean onMenuItemClick(MenuItem item) {
-        switch (item.getItemId()) {
-            case R.id.market_price_plus_1:
-                buyWithMarketPrice(1);
-//                Toast.makeText(mainActivity.getApplicationContext(),"Menu1 clicked",Toast.LENGTH_LONG).show();
-                return true;
-            case R.id.market_price_plus_2:
-                buyWithMarketPrice(2);
-//                Toast.makeText(mainActivity.getApplicationContext(),"Menu2 clicked",Toast.LENGTH_LONG).show();
-                return true;
-            case R.id.market_price_plus_3:
-                buyWithMarketPrice(3);
-//                Toast.makeText(mainActivity.getApplicationContext(),"Menu2 clicked",Toast.LENGTH_LONG).show();
-                return true;
-            case R.id.up:
-                // NetworkOnMainThreadException을 방지하기 위해 thread를 돌린다.
-                new Thread(() -> {
-                    TradeData data = list.get(g_position).getData();
-                    OrderManager orderManager = new OrderManager();
-                    float movingUnits = (float)((int)(((float)GlobalSettings.getInstance().getUnitPrice() / data.getPrice()) * 10000) / 10000.0);
-
-                    // 옮긴 이후에 애매하게 남을거 같으면 다 옮긴다.
-                    if (movingUnits * 1.5 > data.getUnits()) {
-                        movingUnits = data.getUnits();
-                    }
-
-                    // 원래 order 취소
-                    if (!orderManager.cancelOrder("OrderListPage_Up_1", data)) {
-                        mainActivity.runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                Toast.makeText(mainActivity.getApplicationContext(), "주문 취소 실패", Toast.LENGTH_LONG).show();
-                            }
-                        });
-                        return;
-                    }
-
-                    // ONE_TIME_PRICE 만큼 높은 가격의 신규 order 추가
-                    TradeData targetData = placedOrderManager.findByPrice(SELL, data.getPrice() + MainPage.getProfitPrice(data.getPrice()));
-                    if (targetData != null) {
-                        // 이미 동일 가격의 order가 있다면 취소 하고 합쳐서 추가
-                        if (!orderManager.cancelOrder("OrderListPage_Up_2", targetData)) {
-                            mainActivity.runOnUiThread(new Runnable() {
-                                @Override
-                                public void run() {
-                                    Toast.makeText(mainActivity.getApplicationContext(), "고가 주문 취소 실패", Toast.LENGTH_LONG).show();
-                                }
-                            });
-                            return;
-                        }
-
-                        float newUnits = (float)(Math.round((movingUnits + targetData.getUnits()) * 10000d) / 10000d);
-                        JSONObject result = orderManager.addOrder("OrderListPage_Up_3", data.getType(), newUnits, targetData.getPrice());
-                        if (!((String)result.get("status")).equals("0000")) {
-                            Log.d("KTrader", result.toString());
-//                                                Toast.makeText(mainActivity.getApplicationContext(), "High Order 생성 실패", Toast.LENGTH_LONG).show();
-                            return;
-                        }
-                    } else {
-                        // 동일 가격의 order가 없다면 신규만 추가
-                        JSONObject result = orderManager.addOrder("OrderListPage_Up_4", data.getType(), movingUnits, data.getPrice() + MainPage.getProfitPrice(data.getPrice()));
-                        if (!((String)result.get("status")).equals("0000")) {
-                            Log.d("KTrader", result.toString());
-//                                                Toast.makeText(mainActivity.getApplicationContext(), "High Order 생성 실패", Toast.LENGTH_LONG).show();
-                            return;
-                        }
-                    }
-
-                    // 원래 order에 -ONE_TIME_PRICE 만큼 추가
-                    if (data.getUnits() > movingUnits) {
-                        float newUnits = (float)(Math.round((data.getUnits() - movingUnits) * 10000d) / 10000d);
-                        JSONObject result = orderManager.addOrder("OrderListPage_Up_5", data.getType(), newUnits, data.getPrice());
-                        if (!((String)result.get("status")).equals("0000")) {
-                            Log.d("KTrader", result.toString());
-//                                                Toast.makeText(mainActivity.getApplicationContext(), "Order 마무리 실패", Toast.LENGTH_LONG).show();
-                            return;
-                        }
-                    }
-                }).start();
-                return true;
-            case R.id.down:
-                // NetworkOnMainThreadException을 방지하기 위해 thread를 돌린다.
-                new Thread(() -> {
-                    try {
-                        down(MainPage.getProfitPrice());
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
-                }).start();
-                return true;
-
-            case R.id.down_half:
-                // NetworkOnMainThreadException을 방지하기 위해 thread를 돌린다.
-                // 최소 거래 단위인 1,000원으로 내림한다.
-                new Thread(() -> {
-                    try {
-                        down(floor(MainPage.getProfitPrice() / 2, 1000));
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
-                }).start();
-                return true;
-
-            case R.id.merge:
-                // NetworkOnMainThreadException을 방지하기 위해 thread를 돌린다.
-                new Thread(() -> {
-                    TradeData data = list.get(g_position).getData();
-                    OrderManager orderManager = new OrderManager();
-
-                    List<TradeData> list = placedOrderManager.getByPrice(SELL, data.getPrice());
-                    if (list.size() > 1) {
-                        // merge
-                        float mergedUnits = 0;
-                        for (TradeData data2 : list) {
-                            mergedUnits += data2.getUnits();
-
-                            // cancel original orders
-                            if (!orderManager.cancelOrder("OrderListPage_Down_367", data2)) {
-                                mainActivity.runOnUiThread(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        Toast.makeText(mainActivity.getApplicationContext(), "주문 취소 실패", Toast.LENGTH_LONG).show();
-                                    }
-                                });
-                                return;
-                            }
-                        }
-
-                        // add new merged order
-                        float newUnits = (float)(Math.round(mergedUnits * 10000d) / 10000d);
-                        JSONObject result = orderManager.addOrder("OrderListPage_Down_375", SELL, newUnits, data.getPrice());
-                        if (!((String)result.get("status")).equals("0000")) {
-                            Log.d("KTrader", result.toString());
-//                                                Toast.makeText(mainActivity.getApplicationContext(), "Lower Order 생성 실패", Toast.LENGTH_LONG).show();
-                            return;
-                        }
-                    }
-                }).start();
-                return true;
-            case R.id.sell_10000:
-                // NetworkOnMainThreadException을 방지하기 위해 thread를 돌린다.
-                new Thread(() -> {
-                    TradeData data = list.get(g_position).getData();
-                    OrderManager orderManager = new OrderManager();
-                    float sellUnits = (float)((int)((10000.0 / TradeJobService.currentPrice) * 10000) / 10000.0);
-
-                    // 이상하게 큰 값이 나오면 에러로 판단한다.
-                    if (sellUnits > 0.1) {
-                        LogInfoFormatter.logInfo("계산된 만원 어치가 너무 큼 : " + sellUnits);
-                        return;
-                    }
-
-                    // 10,000원보다 적게 남는 경우 모두 판매한다.
-                    if (sellUnits > data.getUnits()) {
-                        sellUnits = data.getUnits();
-                    }
-
-                    // 원래 order 취소
-                    if (!orderManager.cancelOrder("sell_10000_1", data)) {
-                        mainActivity.runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                Toast.makeText(mainActivity.getApplicationContext(), "주문 취소 실패", Toast.LENGTH_LONG).show();
-                            }
-                        });
-                        return;
-                    }
-
-                    // 10,000원 어치 시장가 판매
-                    JSONObject result = orderManager.addOrderWithMarketPrice("sell_10000_2", SELL, sellUnits);
-                    if (result == null) {
-                        LogInfoFormatter.logInfo("시장가로 10,000원 어치 매도 실패");
-                        return;
-                    }
-
-                    // 원래 order에 -10,000원 만큼 다시 판매
-                    float newUnits = 0;
-                    if (data.getUnits() > sellUnits) {
-                        newUnits = (float)(Math.round((data.getUnits() - sellUnits) * 10000d) / 10000d);
-                        result = orderManager.addOrder("sell_10000_3", data.getType(), newUnits, data.getPrice());
-                        if (!((String)result.get("status")).equals("0000")) {
-                            Log.d("KTrader", result.toString());
-                            return;
-                        }
-                    }
-
-                    LogInfoFormatter.logInfo("시장가 10,000원 어치 매도 성공 : " + data.getUnits() + " -> " + newUnits);
-                }).start();
-                return true;
-            case R.id.sell_50000:
-                // NetworkOnMainThreadException을 방지하기 위해 thread를 돌린다.
-                new Thread(() -> {
-                    TradeData data = list.get(g_position).getData();
-                    OrderManager orderManager = new OrderManager();
-                    float sellUnits = (float)((int)((50000.0 / TradeJobService.currentPrice) * 10000) / 10000.0);
-
-                    // 이상하게 큰 값이 나오면 에러로 판단한다.
-                    if (sellUnits > 0.1) {
-                        LogInfoFormatter.logInfo("계산된 만원 어치가 너무 큼 : " + sellUnits);
-                        return;
-                    }
-
-                    // 10,000원보다 적게 남는 경우 모두 판매한다.
-                    if (sellUnits > data.getUnits()) {
-                        sellUnits = data.getUnits();
-                    }
-
-                    // 원래 order 취소
-                    if (!orderManager.cancelOrder("sell_50000_1", data)) {
-                        mainActivity.runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                Toast.makeText(mainActivity.getApplicationContext(), "주문 취소 실패", Toast.LENGTH_LONG).show();
-                            }
-                        });
-                        return;
-                    }
-
-                    // 10,000원 어치 시장가 판매
-                    JSONObject result = orderManager.addOrderWithMarketPrice("sell_50000_2", SELL, sellUnits);
-                    if (result == null) {
-                        LogInfoFormatter.logInfo("시장가로 50,000원 어치 매도 실패");
-                        return;
-                    }
-
-                    // 원래 order에 -50,000원 만큼 다시 판매
-                    float newUnits = 0;
-                    if (data.getUnits() > sellUnits) {
-                        newUnits = (float)(Math.round((data.getUnits() - sellUnits) * 10000d) / 10000d);
-                        result = orderManager.addOrder("sell_50000_3", data.getType(), newUnits, data.getPrice());
-                        if (!((String)result.get("status")).equals("0000")) {
-                            Log.d("KTrader", result.toString());
-                            return;
-                        }
-                    }
-
-                    LogInfoFormatter.logInfo("시장가 50,000원 어치 매도 성공 : " + data.getUnits() + " -> " + newUnits);
-                }).start();
-                return true;
-            case R.id.cancel:
-                // NetworkOnMainThreadException을 방지하기 위해 thread를 돌린다.
-                new Thread(() -> {
-                    TradeData data = list.get(g_position).getData();
-                    OrderManager orderManager = new OrderManager();
-                    orderManager.cancelOrder("", data);
-                }).start();
-                return true;
-            default:
-                return false;
+        int itemId = item.getItemId();
+        if (itemId == R.id.market_price_plus_1) {
+            return handleMarketPricePlus1();
+        } else if (itemId == R.id.market_price_plus_2) {
+            return handleMarketPricePlus2();
+        } else if (itemId == R.id.market_price_plus_3) {
+            return handleMarketPricePlus3();
+        } else if (itemId == R.id.up) {
+            return handleUpMenu();
+        } else if (itemId == R.id.down) {
+            return handleDownMenu();
+        } else if (itemId == R.id.down_half) {
+            return handleDownHalfMenu();
+        } else if (itemId == R.id.merge) {
+            return handleMergeMenu();
+        } else if (itemId == R.id.sell_10000) {
+            return handleSell10000Menu();
+        } else if (itemId == R.id.sell_50000) {
+            return handleSell50000Menu();
+        } else if (itemId == R.id.cancel) {
+            return handleCancelMenu();
         }
+        return false;
+    }
+
+    private boolean handleMarketPricePlus1() {
+        return handleMarketPricePlus(1);
+    }
+
+    private boolean handleMarketPricePlus2() {
+        return handleMarketPricePlus(2);
+    }
+
+    private boolean handleMarketPricePlus3() {
+        return handleMarketPricePlus(3);
+    }
+
+    private boolean handleMarketPricePlus(int profit) {
+        buyWithMarketPrice(profit);
+        return true;
+    }
+
+    private boolean handleUpMenu() {
+        // NetworkOnMainThreadException을 방지하기 위해 thread를 돌린다.
+        new Thread(() -> {
+            TradeData data = list.get(g_position).getData();
+            OrderManager orderManager = new OrderManager();
+            float movingUnits = (float)((int)(((float)GlobalSettings.getInstance().getUnitPrice() / data.getPrice()) * 10000) / 10000.0);
+
+            // 옮긴 이후에 애매하게 남을거 같으면 다 옮긴다.
+            if (movingUnits * 1.5 > data.getUnits()) {
+                movingUnits = data.getUnits();
+            }
+
+            // 원래 order 취소
+            if (!orderManager.cancelOrder("OrderListPage_Up_1", data)) {
+                mainActivity.runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        Toast.makeText(mainActivity.getApplicationContext(), "주문 취소 실패", Toast.LENGTH_LONG).show();
+                    }
+                });
+                return;
+            }
+
+            // ONE_TIME_PRICE 만큼 높은 가격의 신규 order 추가
+            TradeData targetData = placedOrderManager.findByPrice(SELL, data.getPrice() + MainPage.getProfitPrice(data.getPrice()));
+            if (targetData != null) {
+                // 이미 동일 가격의 order가 있다면 취소 하고 합쳐서 추가
+                if (!orderManager.cancelOrder("OrderListPage_Up_2", targetData)) {
+                    mainActivity.runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            Toast.makeText(mainActivity.getApplicationContext(), "고가 주문 취소 실패", Toast.LENGTH_LONG).show();
+                        }
+                    });
+                    return;
+                }
+
+                float newUnits = (float)(Math.round((movingUnits + targetData.getUnits()) * 10000d) / 10000d);
+                JSONObject result = orderManager.addOrder("OrderListPage_Up_3", data.getType(), newUnits, targetData.getPrice());
+                if (!((String)result.get("status")).equals("0000")) {
+                    Log.d("KTrader", result.toString());
+                    return;
+                }
+            } else {
+                // 동일 가격의 order가 없다면 신규만 추가
+                JSONObject result = orderManager.addOrder("OrderListPage_Up_4", data.getType(), movingUnits, data.getPrice() + MainPage.getProfitPrice(data.getPrice()));
+                if (!((String)result.get("status")).equals("0000")) {
+                    Log.d("KTrader", result.toString());
+                    return;
+                }
+            }
+
+            // 원래 order에 -ONE_TIME_PRICE 만큼 추가
+            if (data.getUnits() > movingUnits) {
+                float newUnits = (float)(Math.round((data.getUnits() - movingUnits) * 10000d) / 10000d);
+                JSONObject result = orderManager.addOrder("OrderListPage_Up_5", data.getType(), newUnits, data.getPrice());
+                if (!((String)result.get("status")).equals("0000")) {
+                    Log.d("KTrader", result.toString());
+                    return;
+                }
+            }
+        }).start();
+        return true;
+    }
+
+    private boolean handleDownMenu() {
+        // NetworkOnMainThreadException을 방지하기 위해 thread를 돌린다.
+        new Thread(() -> {
+            try {
+                down(MainPage.getProfitPrice());
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }).start();
+        return true;
+    }
+
+    private boolean handleDownHalfMenu() {
+        // NetworkOnMainThreadException을 방지하기 위해 thread를 돌린다.
+        // 최소 거래 단위인 1,000원으로 내림한다.
+        new Thread(() -> {
+            try {
+                down(floor(MainPage.getProfitPrice() / 2, 1000));
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }).start();
+        return true;
+    }
+
+    private boolean handleMergeMenu() {
+        // NetworkOnMainThreadException을 방지하기 위해 thread를 돌린다.
+        new Thread(() -> {
+            TradeData data = list.get(g_position).getData();
+            OrderManager orderManager = new OrderManager();
+
+            List<TradeData> list = placedOrderManager.getByPrice(SELL, data.getPrice());
+            if (list.size() > 1) {
+                // merge
+                float mergedUnits = 0;
+                for (TradeData data2 : list) {
+                    mergedUnits += data2.getUnits();
+
+                    // cancel original orders
+                    if (!orderManager.cancelOrder("OrderListPage_Down_367", data2)) {
+                        mainActivity.runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                Toast.makeText(mainActivity.getApplicationContext(), "주문 취소 실패", Toast.LENGTH_LONG).show();
+                            }
+                        });
+                        return;
+                    }
+                }
+
+                // add new merged order
+                float newUnits = (float)(Math.round(mergedUnits * 10000d) / 10000d);
+                JSONObject result = orderManager.addOrder("OrderListPage_Down_375", SELL, newUnits, data.getPrice());
+                if (!((String)result.get("status")).equals("0000")) {
+                    Log.d("KTrader", result.toString());
+                    return;
+                }
+            }
+        }).start();
+        return true;
+    }
+
+    private boolean handleSell10000Menu() {
+        return handleSellAmountMenu(10000);
+    }
+
+    private boolean handleSell50000Menu() {
+        return handleSellAmountMenu(50000);
+    }
+
+    private boolean handleSellAmountMenu(int amountKrw) {
+        // NetworkOnMainThreadException을 방지하기 위해 thread를 돌린다.
+        new Thread(() -> {
+            TradeData data = list.get(g_position).getData();
+            OrderManager orderManager = new OrderManager();
+            float sellUnits = (float)((int)((amountKrw / (double) TradeJobService.currentPrice) * 10000) / 10000.0);
+
+            // 이상하게 큰 값이 나오면 에러로 판단한다.
+            if (sellUnits > 0.1) {
+                LogInfoFormatter.logInfo("계산된 만원 어치가 너무 큼 : " + sellUnits);
+                return;
+            }
+
+            // 10,000원보다 적게 남는 경우 모두 판매한다.
+            if (sellUnits > data.getUnits()) {
+                sellUnits = data.getUnits();
+            }
+
+            // 원래 order 취소
+            if (!orderManager.cancelOrder("sell_" + amountKrw + "_1", data)) {
+                mainActivity.runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        Toast.makeText(mainActivity.getApplicationContext(), "주문 취소 실패", Toast.LENGTH_LONG).show();
+                    }
+                });
+                return;
+            }
+
+            // 10,000원 어치 시장가 판매
+            JSONObject result = orderManager.addOrderWithMarketPrice("sell_" + amountKrw + "_2", SELL, sellUnits);
+            if (result == null) {
+                LogInfoFormatter.logInfo("시장가로 " + String.format(Locale.getDefault(), "%,d", amountKrw) + "원 어치 매도 실패");
+                return;
+            }
+
+            // 원래 order에 -amountKrw 만큼 다시 판매
+            float newUnits = 0;
+            if (data.getUnits() > sellUnits) {
+                newUnits = (float)(Math.round((data.getUnits() - sellUnits) * 10000d) / 10000d);
+                result = orderManager.addOrder("sell_" + amountKrw + "_3", data.getType(), newUnits, data.getPrice());
+                if (!((String)result.get("status")).equals("0000")) {
+                    Log.d("KTrader", result.toString());
+                    return;
+                }
+            }
+
+            LogInfoFormatter.logInfo("시장가 " + String.format(Locale.getDefault(), "%,d", amountKrw) + "원 어치 매도 성공 : " + data.getUnits() + " -> " + newUnits);
+        }).start();
+        return true;
+    }
+
+    private boolean handleCancelMenu() {
+        // NetworkOnMainThreadException을 방지하기 위해 thread를 돌린다.
+        new Thread(() -> {
+            TradeData data = list.get(g_position).getData();
+            OrderManager orderManager = new OrderManager();
+            orderManager.cancelOrder("", data);
+        }).start();
+        return true;
     }
 
     private void down(int amount) {
