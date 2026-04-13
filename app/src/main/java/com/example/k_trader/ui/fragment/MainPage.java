@@ -3,12 +3,9 @@ package com.example.k_trader.ui.fragment;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.os.PowerManager;
-import android.provider.Settings;
 import android.support.annotation.NonNull;
 import android.support.constraint.ConstraintLayout;
 import android.support.design.widget.TabLayout;
@@ -93,7 +90,9 @@ public class MainPage extends Fragment {
     // 실시간 관찰을 위한 필드들
     private CoinPriceInfoRepository coinPriceInfoRepository;
     private TransactionInfoRepository transactionInfoRepository;
-    private TransactionCardBinder transactionCardBinder;
+    private TransactionCardController transactionCardController;
+    private CoinInfoController coinInfoController;
+    private MainPageCoordinator mainPageCoordinator;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable refreshRunnable = new Runnable() {
@@ -130,7 +129,7 @@ public class MainPage extends Fragment {
         textLastBuyPriceCard = layout.findViewById(R.id.textLastBuyPriceCard);
         textLastSellPriceCard = layout.findViewById(R.id.textLastSellPriceCard);
         textNextBuyPriceCard = layout.findViewById(R.id.textNextBuyPriceCard);
-        transactionCardBinder = new TransactionCardBinder(
+        transactionCardController = new TransactionCardController(
                 textCoinKwValueCard,
                 textEstimatedBalanceCard,
                 textTotalBalanceCard,
@@ -139,6 +138,8 @@ public class MainPage extends Fragment {
                 textLastSellPriceCard,
                 textNextBuyPriceCard
         );
+        coinInfoController = new CoinInfoController();
+        mainPageCoordinator = new MainPageCoordinator();
         
         // btnPreference = layout.findViewById(R.id.imageButtonPreference); // App bar 메뉴로 이동
         tabLayout = layout.findViewById(R.id.tabLayout);
@@ -487,37 +488,7 @@ public class MainPage extends Fragment {
      */
     private void startTrading() {
         Log.d("KTrader", "[MainPage] Start Trading button clicked");
-        
-        String packageName = mainActivity.getPackageName();
-        PowerManager pm = (PowerManager) mainActivity.getSystemService(Context.POWER_SERVICE);
-
-        // 배터리 최적화 무시 요청 (트레이딩 앱의 경우 백그라운드 실행이 필요)
-        if (!pm.isIgnoringBatteryOptimizations(packageName)) {
-            Log.d("KTrader", "[MainPage] Requesting battery optimization exemption");
-            Intent i = new Intent();
-            i.setAction(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
-            i.setData(Uri.parse("package:" + packageName));
-            startActivity(i);
-        } else {
-            Log.d("KTrader", "[MainPage] Battery optimization already exempted");
-        }
-
-        // NetworkOnMainThreadException을 방지하기 위해 thread를 돌린다.
-        Log.d("KTrader", "[MainPage] Canceling existing buy orders");
-        new Thread(() -> {
-            try {
-                OrderManager orderManager = new OrderManager();
-                boolean cancelled = orderManager.cancelAllBuyOrders();
-                Log.d("KTrader", "[MainPage] Existing buy orders canceled: " + cancelled);
-            } catch (Exception e) {
-                Log.e("KTrader", "[MainPage] Failed to cancel existing buy orders", e);
-            }
-        }).start();
-
-        // Foreground Service로 TradeJobService 시작
-        Log.d("KTrader", "[MainPage] Starting TradeJobService as Foreground Service");
-        Intent serviceIntent = new Intent(mainActivity, TradeJobService.class);
-        mainActivity.startService(serviceIntent);
+        mainPageCoordinator.startTrading(mainActivity);
 
         isTradingStarted = true;
         updateTradingToggleButton(isTradingStarted);
@@ -529,11 +500,7 @@ public class MainPage extends Fragment {
      */
     private void stopTrading() {
         Log.d("KTrader", "[MainPage] Stop Trading button clicked");
-        
-        // Foreground Service 중지
-        Log.d("KTrader", "[MainPage] Stopping TradeJobService");
-        Intent serviceIntent = new Intent(mainActivity, TradeJobService.class);
-        mainActivity.stopService(serviceIntent);
+        mainPageCoordinator.stopTrading(mainActivity);
 
         isTradingStarted = false;
         updateTradingToggleButton(isTradingStarted);
@@ -564,7 +531,7 @@ public class MainPage extends Fragment {
         super.onResume();
         
         // 실제 서비스 상태 확인하여 UI 동기화
-        boolean actualServiceRunning = TradeJobService.isServiceRunning();
+        boolean actualServiceRunning = mainPageCoordinator.syncTradingStateWithService(isTradingStarted);
         if (actualServiceRunning != isTradingStarted) {
             Log.d("KTrader", "[MainPage] onResume - 서비스 상태와 UI 상태 불일치 감지");
             isTradingStarted = actualServiceRunning;
@@ -1076,15 +1043,13 @@ public class MainPage extends Fragment {
                             
                             // 1시간 등락폭 업데이트 (CoinInfo용)
                             if (textPriceChange != null) {
-                                textPriceChange.setText(finalHourlyChange);
-                                // 등락폭에 따라 색상 변경
-                                if (finalHourlyChange.startsWith("+")) {
-                                    textPriceChange.setTextColor(getResources().getColor(android.R.color.holo_red_dark));
-                                } else if (finalHourlyChange.startsWith("-")) {
-                                    textPriceChange.setTextColor(getResources().getColor(android.R.color.holo_blue_dark));
-                                } else {
-                                    textPriceChange.setTextColor(getResources().getColor(android.R.color.black));
-                                }
+                                coinInfoController.applyPriceChangeColor(
+                                        textPriceChange,
+                                        finalHourlyChange,
+                                        getResources().getColor(android.R.color.holo_red_dark),
+                                        getResources().getColor(android.R.color.holo_blue_dark),
+                                        getResources().getColor(android.R.color.black)
+                                );
                             }
                             
                             // 마지막 동기화 시간 업데이트
@@ -1111,54 +1076,33 @@ public class MainPage extends Fragment {
      * 트랜잭션 카드 UI 업데이트 (잔고/예상잔고/총합)
      */
     private void updateTransactionCardUi(String coinKwValue, String estimatedBalance) {
-        if (transactionCardBinder == null) {
-            Log.w("KTrader", "[MainPage] transactionCardBinder is null");
+        if (transactionCardController == null) {
+            Log.w("KTrader", "[MainPage] transactionCardController is null");
             return;
         }
-        transactionCardBinder.updateAmounts(coinKwValue, estimatedBalance);
+        transactionCardController.updateAmounts(coinKwValue, estimatedBalance);
     }
 
     /**
      * 트랜잭션 카드 UI 메타 업데이트 (업데이트 시간/마지막 매수/마지막 매도/다음 매수)
      */
     private void updateTransactionCardMeta(String transactionTime, String lastBuyPrice, String lastSellPrice, String nextBuyPrice) {
-        if (transactionCardBinder == null) {
-            Log.w("KTrader", "[MainPage] transactionCardBinder is null");
+        if (transactionCardController == null) {
+            Log.w("KTrader", "[MainPage] transactionCardController is null");
             return;
         }
-        transactionCardBinder.updateMeta(transactionTime, lastBuyPrice, lastSellPrice, nextBuyPrice);
+        transactionCardController.updateMeta(transactionTime, lastBuyPrice, lastSellPrice, nextBuyPrice);
     }
 
     /**
      * 코인 정보 업데이트
      */
     private void updateCoinInfo() {
-        if (textCoinType == null) {
-            Log.w("KTrader", "[MainPage] updateCoinInfo() - textCoinType is null, returning");
+        String coinType = coinInfoController.updateCoinType(getContext(), textCoinType, coinPriceInfoRepository);
+        if (coinType == null) {
             return;
         }
-        
-        // SharedPreferences에서 직접 코인 타입 읽어오기
-        android.content.SharedPreferences sharedPreferences = getContext().getSharedPreferences("settings", android.content.Context.MODE_PRIVATE);
-        String coinType = sharedPreferences.getString(com.example.k_trader.base.GlobalSettings.COIN_TYPE_KEY_NAME, com.example.k_trader.base.GlobalSettings.COIN_TYPE_DEFAULT_VALUE);
-
-        // GlobalSettings도 업데이트
-        com.example.k_trader.base.GlobalSettings.getInstance().setCoinType(coinType);
-        
-        // 코인 타입 표시
-        textCoinType.setText(coinType);
         cachedCoinType = coinType; // 캐시 저장
-        
-        // Room DB에 코인 타입 저장 (기존 데이터가 있으면 업데이트)
-        if (coinPriceInfoRepository != null) {
-            coinPriceInfoRepository.savePriceInfo(coinType, "", "")
-                .subscribeOn(io.reactivex.schedulers.Schedulers.io())
-                .observeOn(io.reactivex.android.schedulers.AndroidSchedulers.mainThread())
-                .subscribe(
-                    () -> Log.d("KTrader", "[MainPage] 코인 타입을 Room DB에 저장 완료"),
-                    error -> Log.e("KTrader", "[MainPage] 코인 타입 저장 실패", error)
-                );
-        }
         
         // 활성 거래 수는 DB에서 가져오기
         updateActiveOrdersCount();
@@ -1247,15 +1191,13 @@ public class MainPage extends Fragment {
             textCurrentPrice.setText(currentPrice);
         }
         if (textPriceChange != null) {
-            textPriceChange.setText(priceChange);
-            // 등락률에 따라 색상 변경
-            if (priceChange.startsWith("+")) {
-                textPriceChange.setTextColor(getResources().getColor(android.R.color.holo_green_dark));
-            } else if (priceChange.startsWith("-")) {
-                textPriceChange.setTextColor(getResources().getColor(android.R.color.holo_red_dark));
-            } else {
-                textPriceChange.setTextColor(getResources().getColor(android.R.color.black));
-            }
+            coinInfoController.applyPriceChangeColor(
+                    textPriceChange,
+                    priceChange,
+                    getResources().getColor(android.R.color.holo_green_dark),
+                    getResources().getColor(android.R.color.holo_red_dark),
+                    getResources().getColor(android.R.color.black)
+            );
         }
     }
     
@@ -1402,84 +1344,4 @@ public class MainPage extends Fragment {
         }
     }
 
-    private static class TransactionCardBinder {
-        private final TextView textCoinKwValueCard;
-        private final TextView textEstimatedBalanceCard;
-        private final TextView textTotalBalanceCard;
-        private final TextView textTransactionTimeCard;
-        private final TextView textLastBuyPriceCard;
-        private final TextView textLastSellPriceCard;
-        private final TextView textNextBuyPriceCard;
-
-        TransactionCardBinder(TextView textCoinKwValueCard,
-                              TextView textEstimatedBalanceCard,
-                              TextView textTotalBalanceCard,
-                              TextView textTransactionTimeCard,
-                              TextView textLastBuyPriceCard,
-                              TextView textLastSellPriceCard,
-                              TextView textNextBuyPriceCard) {
-            this.textCoinKwValueCard = textCoinKwValueCard;
-            this.textEstimatedBalanceCard = textEstimatedBalanceCard;
-            this.textTotalBalanceCard = textTotalBalanceCard;
-            this.textTransactionTimeCard = textTransactionTimeCard;
-            this.textLastBuyPriceCard = textLastBuyPriceCard;
-            this.textLastSellPriceCard = textLastSellPriceCard;
-            this.textNextBuyPriceCard = textNextBuyPriceCard;
-        }
-
-        void updateAmounts(String coinKwValue, String estimatedBalance) {
-            if (textCoinKwValueCard == null || textEstimatedBalanceCard == null || textTotalBalanceCard == null) {
-                Log.w("KTrader", "[MainPage] Transaction card TextViews are null");
-                return;
-            }
-
-            if (coinKwValue != null && !"".equals(coinKwValue)) {
-                textCoinKwValueCard.setText(coinKwValue);
-            }
-            if (estimatedBalance != null && !"".equals(estimatedBalance)) {
-                textEstimatedBalanceCard.setText(estimatedBalance);
-            }
-
-            String total = calculateTotalBalanceSafe(
-                    textCoinKwValueCard.getText().toString(),
-                    textEstimatedBalanceCard.getText().toString()
-            );
-            textTotalBalanceCard.setText(total);
-            Log.d("KTrader", "[MainPage] Transaction card updated: coin=" + textCoinKwValueCard.getText() + ", est=" + textEstimatedBalanceCard.getText() + ", total=" + total);
-        }
-
-        void updateMeta(String transactionTime, String lastBuyPrice, String lastSellPrice, String nextBuyPrice) {
-            if (textTransactionTimeCard != null && transactionTime != null && !transactionTime.isEmpty()) {
-                textTransactionTimeCard.setText(transactionTime);
-            }
-            if (textLastBuyPriceCard != null && lastBuyPrice != null && !lastBuyPrice.isEmpty()) {
-                textLastBuyPriceCard.setText(lastBuyPrice);
-            }
-            if (textLastSellPriceCard != null && lastSellPrice != null && !lastSellPrice.isEmpty()) {
-                textLastSellPriceCard.setText(lastSellPrice);
-            }
-            if (textNextBuyPriceCard != null && nextBuyPrice != null && !nextBuyPrice.isEmpty()) {
-                textNextBuyPriceCard.setText(nextBuyPrice);
-            }
-            Log.d("KTrader", "[MainPage] Transaction card meta updated: time=" + (transactionTime == null ? "" : transactionTime)
-                    + ", lastBuy=" + (lastBuyPrice == null ? "" : lastBuyPrice)
-                    + ", lastSell=" + (lastSellPrice == null ? "" : lastSellPrice)
-                    + ", nextBuy=" + (nextBuyPrice == null ? "" : nextBuyPrice));
-        }
-
-        private String calculateTotalBalanceSafe(String coinKwValue, String estimatedBalance) {
-            try {
-                String coinKwNum = coinKwValue.replaceAll("[^0-9,]", "").replace(",", "");
-                String estimatedNum = estimatedBalance.replaceAll("[^0-9,]", "").replace(",", "");
-
-                long coinValue = coinKwNum.isEmpty() ? 0 : Long.parseLong(coinKwNum);
-                long estimated = estimatedNum.isEmpty() ? 0 : Long.parseLong(estimatedNum);
-                long total = coinValue + estimated;
-                return String.format(java.util.Locale.getDefault(), "₩%,d", total);
-            } catch (Exception e) {
-                Log.e("KTrader", "[MainPage] Error calculating total balance", e);
-                return "₩0";
-            }
-        }
-    }
 }

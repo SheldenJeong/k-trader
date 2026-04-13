@@ -40,12 +40,12 @@
 - Phase 0 커버리지 게이트(90% 이상) 충족 상태 유지
 
 ### Phase 2 - SRP 강화
-- [ ] `MainPage`를 화면 조합/데이터 갱신 책임으로 분리
-  - [ ] `CoinInfoController`
-  - [ ] `TransactionCardController`
-  - [ ] `MainPageCoordinator`
-- [ ] `TradeJobService`의 비즈니스 판단 로직을 UseCase로 분리
-- [ ] `OrderManager`의 에러 리포팅/파싱 책임 분리
+- [x] `MainPage`를 화면 조합/데이터 갱신 책임으로 분리
+  - [x] `CoinInfoController`
+  - [x] `TransactionCardController`
+  - [x] `MainPageCoordinator`
+- [x] `TradeJobService`의 비즈니스 판단 로직을 UseCase로 분리
+- [x] `OrderManager`의 에러 리포팅/파싱 책임 분리
 
 완료 기준:
 - `MainPage`, `TradeJobService`의 직접 도메인 로직 감소
@@ -74,6 +74,9 @@
 - 커버리지 90% 이상 유지
 
 ## 이번 변경(진행)
-- `OrderManager`의 중복된 API 응답 검증 분기(`null`, `status 타입`, `status != 0000`)를 공통 메서드로 통합
-- `cancelOrder`, `addOrder`, `addOrderWithMarketPrice`에 공통 메서드 적용
+- `TradeDecisionUseCase` 신규 추가: `getFloorPrice`, `calculateUnitAmount`, `hasEnoughKrwBalance` 분리
+- `TradeJobService`가 가격 슬롯 계산/매수 잔고 판단 시 UseCase를 사용하도록 변경
+- `TradeDecisionUseCaseTest` 추가로 분리 로직 단위 검증
+- `CoinInfoController`, `TransactionCardController`, `MainPageCoordinator` 추가 후 `MainPage`에서 책임 위임
+- `OrderManagerErrorReporter`, `OrderManagerResponseParser` 추가 후 `OrderManager`의 응답 검증/에러카드/파싱 책임 분리
 

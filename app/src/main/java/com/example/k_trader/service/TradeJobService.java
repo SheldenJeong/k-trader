@@ -3,6 +3,7 @@ package com.example.k_trader.service;
 import com.example.k_trader.notification.TradeNotificationManager;
 import com.example.k_trader.domain.model.CoinSpecific;
 import com.example.k_trader.domain.model.CoinSpecificFactory;
+import com.example.k_trader.domain.usecase.TradeDecisionUseCase;
 import android.app.Service;
 import android.os.Handler;
 import android.os.Looper;
@@ -72,6 +73,7 @@ public class TradeJobService extends Service {
 
     // PriceQueueManager 사용 (Singleton)
     private final PriceQueueManager priceQueueManager = PriceQueueManager.getInstance();
+    private final TradeDecisionUseCase tradeDecisionUseCase = new TradeDecisionUseCase();
     private Context ctx;
     private OrderManager orderManager;
 
@@ -855,7 +857,7 @@ public class TradeJobService extends Service {
                 Log.d("KTrader", "[TradeJobService] 매수 주문 필요 금액: " + requiredAmount + ", 보유 금액: " + krwBalance);
                 
                 // 부동소수점 오차를 고려한 잔고 확인 (0.01원 여유분 추가)
-                if (krwBalance < (requiredAmount + 0.01)) {
+                if (!tradeDecisionUseCase.hasEnoughKrwBalance(krwBalance, requiredAmount)) {
                     // 잔고 부족 메시지는 한 번만 출력
                     if (!insufficientBalanceMessageShown) {
                         LogInfoFormatter.logInfo("잔고 부족으로 매수 주문을 건너뜁니다. 필요: " +
@@ -932,14 +934,12 @@ public class TradeJobService extends Service {
 
     // 주어진 가격 아래쪽의 첫번째 매수 slot 가격을 구한다.
     private int getFloorPrice(int price) {
-        return price - (price % MainPage.getSlotIntervalPrice(price));
+        return tradeDecisionUseCase.getFloorPrice(price, MainPage.getSlotIntervalPrice(price));
     }
 
     // 주어진 가격 slot에 매수 가능한 코인 개수를 구한다. 소수점 아래 4자리로 절사
     private double getUnitAmount4Price(int price) {
-        double unitAmount = (double)GlobalSettings.getInstance().getUnitPrice() / price;
-        // 소수점 4자리로 반올림하여 부동소수점 오차 방지
-        return Math.round(unitAmount * 10000.0) / 10000.0;
+        return tradeDecisionUseCase.calculateUnitAmount(GlobalSettings.getInstance().getUnitPrice(), price);
     }
     
     /**

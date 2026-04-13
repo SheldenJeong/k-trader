@@ -46,6 +46,8 @@ public class OrderManager {
     private final BithumbApiDao.BithumbBalanceDao balanceDao;
     private final BithumbApiDao.BithumbOrderDao orderDao;
     private final BithumbApiDao.ApiCallStatsDao apiStatsDao;
+    private final OrderManagerErrorReporter errorReporter;
+    private final OrderManagerResponseParser responseParser;
 
     public interface TradeApiService {
         Api_Client getApiService();
@@ -61,6 +63,8 @@ public class OrderManager {
     public OrderManager() {
         tradeApiService = new DefaultTradeApiService();
         gson = new Gson();
+        errorReporter = new OrderManagerErrorReporter();
+        responseParser = new OrderManagerResponseParser();
         Context appContext = KTraderApplication.getAppContext();
         if (appContext != null) {
             database = OrderDatabase.getInstance(appContext);
@@ -81,6 +85,8 @@ public class OrderManager {
     public OrderManager(TradeApiService tradeApiService) {
         this.tradeApiService = tradeApiService;
         gson = new Gson();
+        errorReporter = new OrderManagerErrorReporter();
+        responseParser = new OrderManagerResponseParser();
         Context appContext = KTraderApplication.getAppContext();
         if (appContext != null) {
             database = OrderDatabase.getInstance(appContext);
@@ -629,69 +635,20 @@ public class OrderManager {
     }
 
     private boolean hasValidApiStatus(JSONObject result, String tag, String endpoint, String errorType, String errorDescription) {
-        if (result == null) {
-            LogInfoFormatter.logInfo(tag + " : " + endpoint + " : null");
-            sendErrorCard(errorType, errorDescription, endpoint, "NULL_RESPONSE", "API 응답이 null입니다");
-            return false;
-        }
-
-        Log.d("KTrader", "[OrderManager] API 응답 (" + endpoint + "): " + result.toString());
-
-        if (result.get("status") instanceof Long) {
-            String logMessage = tag + " : " + endpoint + " : " + result;
-            LogInfoFormatter.logInfo(logMessage);
-            sendErrorCard(errorType, errorDescription, endpoint, "INVALID_STATUS_TYPE", result.toString());
-            return false;
-        }
-
-        String status = String.valueOf(result.get("status"));
-        if (!"0000".equals(status)) {
-            String serverMessage = result.get("message") != null ? result.get("message").toString() : "unknown error";
-            LogInfoFormatter.logInfo(tag + " : " + endpoint + " : " + result);
-            LogInfoFormatter.logInfo(tag + " : API 오류 상세 - Status: " + status + ", Message: " + serverMessage);
-            sendErrorCard(errorType, errorDescription, endpoint, status, serverMessage);
-            return false;
-        }
-
-        return true;
+        return errorReporter.hasValidApiStatus(result, tag, endpoint, errorType, errorDescription);
     }
 
     private boolean isNoActiveOrderResponse(JSONObject result) {
-        if (result == null || result.get("status") == null) {
-            return false;
-        }
-        String status = String.valueOf(result.get("status"));
-        if (!"5600".equals(status)) {
-            return false;
-        }
-        String message = result.get("message") != null ? result.get("message").toString() : "";
-        return "거래 진행중인 내역이 존재하지 않습니다.".equals(message);
+        return responseParser.isNoActiveOrderResponse(result);
     }
     
     private void sendErrorCard(String errorType, String errorMessage, String apiEndpoint, String errorCode, String serverErrorMessage) {
-        try {
-            Calendar currentTime = Calendar.getInstance();
-            String errorTime = String.format(Locale.getDefault(), "%d/%02d/%02d %02d:%02d:%02d",
-                currentTime.get(Calendar.YEAR), currentTime.get(Calendar.MONTH) + 1, currentTime.get(Calendar.DATE),
-                currentTime.get(Calendar.HOUR_OF_DAY), currentTime.get(Calendar.MINUTE), currentTime.get(Calendar.SECOND));
-            
-            Intent intent = new Intent("TRADE_ERROR_CARD");
-            intent.putExtra("errorTime", errorTime);
-            intent.putExtra("errorType", errorType);
-            intent.putExtra("errorMessage", errorMessage);
-            intent.putExtra("apiEndpoint", apiEndpoint != null ? apiEndpoint : "/unknown");
-            intent.putExtra("errorCode", errorCode != null ? errorCode : "Unknown");
-            intent.putExtra("serverErrorMessage", serverErrorMessage != null ? serverErrorMessage : errorMessage);
-            
-            LocalBroadcastManager.getInstance(KTraderApplication.getAppContext()).sendBroadcast(intent);
-        } catch (Exception e) {
-            Log.e("OrderManager", "에러 카드 전송 중 오류 발생", e);
-        }
+        errorReporter.sendErrorCard(errorType, errorMessage, apiEndpoint, errorCode, serverErrorMessage);
     }
     
     // 기존 메서드와의 호환성을 위한 오버로드
     private void sendErrorCard(String errorType, String errorMessage) {
-        sendErrorCard(errorType, errorMessage, "/unknown", "Unknown", errorMessage);
+        errorReporter.sendErrorCard(errorType, errorMessage);
     }
     
     /**
@@ -869,14 +826,6 @@ public class OrderManager {
      * 문자열을 Double로 안전하게 변환
      */
     private double parseDouble(String value) {
-        try {
-            if (value == null || value.trim().isEmpty()) {
-                return 0.0;
-            }
-            return Double.parseDouble(value);
-        } catch (NumberFormatException e) {
-            Log.w("KTrader", "[OrderManager] 숫자 변환 오류: " + value, e);
-            return 0.0;
-        }
+        return responseParser.parseDouble(value);
     }
 }
