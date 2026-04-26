@@ -53,9 +53,9 @@
 - 커버리지 90% 이상 유지
 
 ### Phase 3 - MVVM 실동작 전환
-- [ ] `DIContainer`의 null 주입 제거
-- [ ] UseCase 실제 구현 주입
-- [ ] Fragment 내 직접 API/DB 호출 제거 후 ViewModel 경유
+- [x] `DIContainer`의 null 주입 제거
+- [x] UseCase 기본 구현 주입(Null 대신 No-op Proxy 기반)
+- [~] Fragment 내 직접 API/DB 호출 제거 후 ViewModel 경유 (진행 중: 활성 주문 수 조회 경로 MainPage -> MainViewModel로 전환)
 - [ ] ViewModel 상태 전이 테스트 추가
 
 완료 기준:

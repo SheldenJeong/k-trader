@@ -4,12 +4,15 @@ import android.arch.lifecycle.LiveData;
 import android.arch.lifecycle.MutableLiveData;
 import android.arch.lifecycle.ViewModel;
 import android.util.Log;
+import com.example.k_trader.base.OrderManager;
 import com.example.k_trader.domain.model.DomainModels.*;
 import com.example.k_trader.domain.usecase.UseCases.*;
 import com.example.k_trader.domain.service.DomainServices.*;
 import io.reactivex.android.schedulers.AndroidSchedulers;
 import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.schedulers.Schedulers;
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
 import java.util.List;
 
 /**
@@ -46,6 +49,7 @@ public class ViewModels {
         private final MutableLiveData<Boolean> isAutoTradingEnabled = new MutableLiveData<>();
         private final MutableLiveData<String> errorMessage = new MutableLiveData<>();
         private final MutableLiveData<Boolean> isLoading = new MutableLiveData<>();
+        private final MutableLiveData<String> activeOrdersSummary = new MutableLiveData<>();
 
         public MainViewModel(ManageTradingDataUseCase manageTradingDataUseCase,
                            MonitorCoinPriceUseCase monitorCoinPriceUseCase,
@@ -178,6 +182,31 @@ public class ViewModels {
             );
         }
 
+        // Phase 3: Fragment의 직접 API 호출을 줄이기 위한 레거시 브릿지
+        public void refreshActiveOrdersSummary() {
+            new Thread(() -> {
+                try {
+                    JSONArray dataArray = new OrderManager().getPlacedOrderList("MainViewModel 활성 주문 조회");
+                    int sellCount = 0;
+                    int buyCount = 0;
+                    if (dataArray != null) {
+                        for (int i = 0; i < dataArray.size(); i++) {
+                            JSONObject item = (JSONObject) dataArray.get(i);
+                            String type = (String) item.get("type");
+                            if ("ask".equals(type)) {
+                                sellCount++;
+                            } else if ("bid".equals(type)) {
+                                buyCount++;
+                            }
+                        }
+                    }
+                    activeOrdersSummary.postValue("S" + sellCount + " : B" + buyCount);
+                } catch (Exception e) {
+                    Log.e("KTrader", "[MainViewModel] Error refreshing active orders summary", e);
+                }
+            }).start();
+        }
+
         // Getters for LiveData
         public LiveData<CoinPriceInfo> getCurrentPrice() { return currentPrice; }
         public LiveData<List<Trade>> getActiveOrders() { return activeOrders; }
@@ -186,6 +215,7 @@ public class ViewModels {
         public LiveData<Boolean> getIsAutoTradingEnabled() { return isAutoTradingEnabled; }
         public LiveData<String> getErrorMessage() { return errorMessage; }
         public LiveData<Boolean> getIsLoading() { return isLoading; }
+        public LiveData<String> getActiveOrdersSummary() { return activeOrdersSummary; }
 
         @Override
         protected void onCleared() {

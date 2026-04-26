@@ -743,7 +743,9 @@ public class MainActivity extends AppCompatActivity {
      */
     public void refreshData() {
         android.util.Log.d("KTrader", "[MainActivity] Refreshing data via ViewModel");
-        mainViewModel.refreshData();
+        if (mainViewModel != null) {
+            mainViewModel.refreshData();
+        }
     }
     
     /**
@@ -751,7 +753,9 @@ public class MainActivity extends AppCompatActivity {
      */
     public void startObservingCoinPrice(String coinType) {
         android.util.Log.d("KTrader", "[MainActivity] Starting to observe coin price for: " + coinType);
-        mainViewModel.observeCoinPrice(coinType);
+        if (mainViewModel != null) {
+            mainViewModel.observeCoinPrice(coinType);
+        }
     }
     
     /**
@@ -759,6 +763,18 @@ public class MainActivity extends AppCompatActivity {
      */
     public void startObservingActiveOrders() {
         android.util.Log.d("KTrader", "[MainActivity] Starting to observe active orders");
-        mainViewModel.observeActiveOrders();
+        if (mainViewModel != null) {
+            mainViewModel.observeActiveOrders();
+        }
+    }
+
+    public void refreshActiveOrdersSummary() {
+        if (mainViewModel != null) {
+            mainViewModel.refreshActiveOrdersSummary();
+        }
+    }
+
+    public MainViewModel getMainViewModel() {
+        return mainViewModel;
     }
 }

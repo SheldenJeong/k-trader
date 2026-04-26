@@ -3,6 +3,20 @@ package com.example.k_trader.di;
 import android.content.Context;
 import android.util.Log;
 
+import com.example.k_trader.domain.repository.RepositoryInterfaces.BalanceRepository;
+import com.example.k_trader.domain.repository.RepositoryInterfaces.CoinPriceRepository;
+import com.example.k_trader.domain.repository.RepositoryInterfaces.NotificationRepository;
+import com.example.k_trader.domain.repository.RepositoryInterfaces.PortfolioRepository;
+import com.example.k_trader.domain.repository.RepositoryInterfaces.SettingsRepository;
+import com.example.k_trader.domain.repository.RepositoryInterfaces.SyncRepository;
+import com.example.k_trader.domain.repository.RepositoryInterfaces.TradeRepository;
+import com.example.k_trader.domain.service.DomainServices.TradingAnalysisService;
+import com.example.k_trader.domain.service.DomainServices.TradingExecutionService;
+import com.example.k_trader.domain.usecase.UseCases.AutoTradingUseCase;
+import com.example.k_trader.domain.usecase.UseCases.ManagePortfolioUseCase;
+import com.example.k_trader.domain.usecase.UseCases.ManageSettingsUseCase;
+import com.example.k_trader.domain.usecase.UseCases.ManageTradingDataUseCase;
+import com.example.k_trader.domain.usecase.UseCases.MonitorCoinPriceUseCase;
 import com.example.k_trader.presentation.viewmodel.ViewModels.*;
 import com.example.k_trader.database.OrderRepository;
 import com.example.k_trader.database.CoinPriceInfoRepository;
@@ -14,6 +28,12 @@ import com.example.k_trader.database.daos.CoinPriceInfoDao;
 import com.example.k_trader.database.daos.TransactionInfoDao;
 import com.example.k_trader.database.daos.ErrorDao;
 import com.example.k_trader.database.daos.ApiCallResultDao;
+
+import java.lang.reflect.Proxy;
+
+import io.reactivex.Completable;
+import io.reactivex.Observable;
+import io.reactivex.Single;
 
 /**
  * Dependency Injection Container for K-Trader App
@@ -48,6 +68,22 @@ public class DIContainer {
     private OrderRepository orderRepository;
     private CoinPriceInfoRepository coinPriceInfoRepository;
     private TransactionInfoRepository transactionInfoRepository;
+    
+    // Clean Architecture repositories/usecases/services
+    private TradeRepository tradeRepository;
+    private CoinPriceRepository coinPriceRepository;
+    private BalanceRepository balanceRepository;
+    private SettingsRepository settingsRepository;
+    private NotificationRepository notificationRepository;
+    private PortfolioRepository portfolioRepository;
+    private SyncRepository syncRepository;
+    private ManageTradingDataUseCase manageTradingDataUseCase;
+    private MonitorCoinPriceUseCase monitorCoinPriceUseCase;
+    private AutoTradingUseCase autoTradingUseCase;
+    private ManageSettingsUseCase manageSettingsUseCase;
+    private ManagePortfolioUseCase managePortfolioUseCase;
+    private TradingExecutionService tradingExecutionService;
+    private TradingAnalysisService tradingAnalysisService;
 
     private DIContainer(Context context) {
         this.context = context.getApplicationContext();
@@ -84,6 +120,7 @@ public class DIContainer {
             
             // 4. Repository Implementations 초기화
             initializeRepositories();
+            initializeUseCasesAndServices();
             
             Log.d("KTrader", "[DIContainer] All dependencies initialized successfully");
             
@@ -129,6 +166,62 @@ public class DIContainer {
         transactionInfoRepository = new TransactionInfoRepository(context);
     }
 
+    private void initializeUseCasesAndServices() {
+        Log.d("KTrader", "[DIContainer] Initializing clean architecture dependencies");
+        tradeRepository = createNoOpRepository(TradeRepository.class);
+        coinPriceRepository = createNoOpRepository(CoinPriceRepository.class);
+        balanceRepository = createNoOpRepository(BalanceRepository.class);
+        settingsRepository = createNoOpRepository(SettingsRepository.class);
+        notificationRepository = createNoOpRepository(NotificationRepository.class);
+        portfolioRepository = createNoOpRepository(PortfolioRepository.class);
+        syncRepository = createNoOpRepository(SyncRepository.class);
+
+        manageTradingDataUseCase = new ManageTradingDataUseCase(tradeRepository, notificationRepository);
+        monitorCoinPriceUseCase = new MonitorCoinPriceUseCase(coinPriceRepository, notificationRepository);
+        autoTradingUseCase = new AutoTradingUseCase(tradeRepository, coinPriceRepository, balanceRepository, settingsRepository, notificationRepository);
+        manageSettingsUseCase = new ManageSettingsUseCase(settingsRepository);
+        managePortfolioUseCase = new ManagePortfolioUseCase(portfolioRepository, tradeRepository, balanceRepository, coinPriceRepository);
+
+        tradingExecutionService = new TradingExecutionService(tradeRepository, balanceRepository, settingsRepository, notificationRepository);
+        tradingAnalysisService = new TradingAnalysisService(tradeRepository, coinPriceRepository, balanceRepository);
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> T createNoOpRepository(Class<T> repositoryType) {
+        return (T) Proxy.newProxyInstance(
+                repositoryType.getClassLoader(),
+                new Class<?>[]{repositoryType},
+                (proxy, method, args) -> {
+                    Class<?> returnType = method.getReturnType();
+                    if (returnType == Completable.class) {
+                        return Completable.complete();
+                    }
+                    if (returnType == Single.class) {
+                        return Single.error(new UnsupportedOperationException(repositoryType.getSimpleName() + "." + method.getName() + " is not implemented yet"));
+                    }
+                    if (returnType == Observable.class) {
+                        return Observable.empty();
+                    }
+                    if (returnType == boolean.class) {
+                        return false;
+                    }
+                    if (returnType == int.class) {
+                        return 0;
+                    }
+                    if (returnType == long.class) {
+                        return 0L;
+                    }
+                    if (returnType == float.class) {
+                        return 0f;
+                    }
+                    if (returnType == double.class) {
+                        return 0d;
+                    }
+                    return null;
+                }
+        );
+    }
+
     // Repository Getters (기존 구조)
     public OrderRepository getOrderRepository() {
         return orderRepository;
@@ -145,39 +238,35 @@ public class DIContainer {
     // ViewModel Factory Methods
     public MainViewModel createMainViewModel() {
         Log.d("KTrader", "[DIContainer] Creating MainViewModel");
-        // TODO: 실제 Use Case들과 연결 후 구현
         return new MainViewModel(
-            null, // manageTradingDataUseCase
-            null, // monitorCoinPriceUseCase
-            null, // autoTradingUseCase
-            null, // manageSettingsUseCase
-            null  // tradingAnalysisService
+            manageTradingDataUseCase,
+            monitorCoinPriceUseCase,
+            autoTradingUseCase,
+            manageSettingsUseCase,
+            tradingAnalysisService
         );
     }
 
     public OrderManagementViewModel createOrderManagementViewModel() {
         Log.d("KTrader", "[DIContainer] Creating OrderManagementViewModel");
-        // TODO: 실제 Use Case들과 연결 후 구현
         return new OrderManagementViewModel(
-            null, // manageTradingDataUseCase
-            null, // tradingExecutionService
-            null  // tradingAnalysisService
+            manageTradingDataUseCase,
+            tradingExecutionService,
+            tradingAnalysisService
         );
     }
 
     public PortfolioViewModel createPortfolioViewModel() {
         Log.d("KTrader", "[DIContainer] Creating PortfolioViewModel");
-        // TODO: 실제 Use Case들과 연결 후 구현
         return new PortfolioViewModel(
-            null, // managePortfolioUseCase
-            null  // tradingAnalysisService
+            managePortfolioUseCase,
+            tradingAnalysisService
         );
     }
 
     public SettingsViewModel createSettingsViewModel() {
         Log.d("KTrader", "[DIContainer] Creating SettingsViewModel");
-        // TODO: 실제 Use Case들과 연결 후 구현
-        return new SettingsViewModel(null); // manageSettingsUseCase
+        return new SettingsViewModel(manageSettingsUseCase);
     }
 
     // Utility Methods (기존 구조)

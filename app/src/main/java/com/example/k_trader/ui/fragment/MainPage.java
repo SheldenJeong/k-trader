@@ -27,6 +27,7 @@ import com.example.k_trader.database.CoinPriceInfoRepository;
 import com.example.k_trader.database.TransactionInfoRepository;
 import com.example.k_trader.database.entities.TransactionInfoEntity;
 import com.example.k_trader.ui.activity.MainActivity;
+import com.example.k_trader.presentation.viewmodel.ViewModels.MainViewModel;
 import com.example.k_trader.service.TradeJobService;
 import com.example.k_trader.base.GlobalSettings;
 import com.example.k_trader.base.OrderManager;
@@ -73,6 +74,7 @@ public class MainPage extends Fragment {
     private TextView textNextBuyPriceCard;
 
     private MainActivity mainActivity;
+    private MainViewModel mainViewModel;
     private boolean isTradingStarted = false;
     private DatabaseOrderManager databaseOrderManager;
     private CompositeDisposable disposables;
@@ -111,6 +113,9 @@ public class MainPage extends Fragment {
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         ConstraintLayout layout = (ConstraintLayout)inflater.inflate(R.layout.main_page, container,false);
         mainActivity = (MainActivity) getActivity();
+        if (mainActivity != null) {
+            mainViewModel = mainActivity.getMainViewModel();
+        }
         
         // UI 컴포넌트 초기화
         fabTradingToggle = layout.findViewById(R.id.fabTradingToggle);
@@ -188,6 +193,7 @@ public class MainPage extends Fragment {
         
         // BroadcastReceiver 초기화 및 등록
         setupCardDataReceiver();
+        bindMainViewModel();
         
         // 실시간 관찰 시작
         startReactiveObservations();
@@ -541,6 +547,14 @@ public class MainPage extends Fragment {
         // SettingsActivity에서 돌아올 때 코인 정보 업데이트
         Log.d("KTrader", "[MainPage] onResume - updating coin info");
         updateCoinInfo();
+        
+        // Phase 3: ViewModel 경유 데이터 관찰/새로고침 시작
+        if (mainActivity != null) {
+            String coinTypeForObserve = cachedCoinType != null ? cachedCoinType : GlobalSettings.getInstance().getCoinType();
+            mainActivity.startObservingCoinPrice(coinTypeForObserve);
+            mainActivity.startObservingActiveOrders();
+            mainActivity.refreshData();
+        }
         handler.post(refreshRunnable); // 주기적 업데이트 시작
     }
 
@@ -1112,75 +1126,20 @@ public class MainPage extends Fragment {
      * 활성 거래 수 업데이트 (API 직접 호출)
      */
     private void updateActiveOrdersCount() {
-        Log.d("KTrader", "[MainPage] updateActiveOrdersCount() called");
-        Log.d("KTrader", "[MainPage] textActiveOrders: " + (textActiveOrders != null ? "not null" : "null"));
-        
-        if (textActiveOrders == null) {
-            Log.w("KTrader", "[MainPage] Cannot update active orders count - textActiveOrders is null");
+        if (mainActivity != null) {
+            mainActivity.refreshActiveOrdersSummary();
+        }
+    }
+
+    private void bindMainViewModel() {
+        if (mainViewModel == null) {
             return;
         }
-        
-        // 현재 표시된 값이 없거나 기본값인 경우에만 초기값 설정
-        String currentText = textActiveOrders.getText().toString();
-        if (currentText.isEmpty() || currentText.equals("S0 : B0")) {
-            textActiveOrders.setText("S0 : B0");
-            Log.d("KTrader", "[MainPage] Set initial active orders count: S0 : B0");
-        } else {
-            Log.d("KTrader", "[MainPage] Keeping current active orders count: " + currentText);
-        }
-        
-        Log.d("KTrader", "[MainPage] Updating active orders count from API...");
-        
-        // API에서 직접 활성 주문 조회
-        new Thread(() -> {
-            try {
-                OrderManager orderManager = new OrderManager();
-                JSONArray dataArray = orderManager.getPlacedOrderList("MainPage 활성 주문 조회");
-                
-                int sellCount = 0;
-                int buyCount = 0;
-                
-                if (dataArray != null) {
-                    for (int i = 0; i < dataArray.size(); i++) {
-                        JSONObject item = (JSONObject) dataArray.get(i);
-                        String type = (String) item.get("type");
-                        
-                        if ("ask".equals(type)) {
-                            sellCount++;
-                        } else if ("bid".equals(type)) {
-                            buyCount++;
-                        }
-                    }
-                }
-                
-                final String formattedText = "S" + sellCount + " : B" + buyCount;
-                
-                // UI 스레드에서 업데이트
-                if (getActivity() != null) {
-                    getActivity().runOnUiThread(() -> {
-                        textActiveOrders.setText(formattedText);
-                        Log.d("KTrader", "[MainPage] Updated active orders count from API: " + formattedText);
-                    });
-                }
-                
-            } catch (Exception e) {
-                Log.e("KTrader", "[MainPage] Error getting active orders from API", e);
-                // API 호출 실패 시에만 기본값으로 설정 (깜박임 방지)
-                if (getActivity() != null) {
-                    getActivity().runOnUiThread(() -> {
-                        if (textActiveOrders != null) {
-                            String currentValue = textActiveOrders.getText().toString();
-                            if (currentValue.isEmpty() || currentValue.equals("S0 : B0")) {
-                                textActiveOrders.setText("S0 : B0");
-                                Log.d("KTrader", "[MainPage] Set default active orders count due to API error");
-                            } else {
-                                Log.d("KTrader", "[MainPage] Keeping current value despite API error: " + currentValue);
-                            }
-                        }
-                    });
-                }
+        mainViewModel.getActiveOrdersSummary().observe(this, summary -> {
+            if (summary != null && textActiveOrders != null) {
+                textActiveOrders.setText(summary);
             }
-        }).start();
+        });
     }
     
     /**
